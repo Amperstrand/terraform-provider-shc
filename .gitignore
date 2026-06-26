@@ -1,3 +1,5 @@
 terraform-provider-shc
 *.tfstate*
 .terraform/
+__pycache__/
+*.pyc
