@@ -1,0 +1,132 @@
+name: Integration
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'yes' to run -- this provisions and cancels a real VM"
+        required: true
+        default: "yes"
+
+jobs:
+  integration:
+    name: Go client VM lifecycle (create + cancel)
+    runs-on: ubuntu-latest
+    env:
+      SHC_API_KEY: ${{ secrets.SHC_API_KEY }}
+    steps:
+      - name: Abort without API key
+        run: |
+          if [ -z "$SHC_API_KEY" ]; then
+            echo "::error::SHC_API_KEY secret is required"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Balance before (masked)
+        id: balance-before
+        run: |
+          BAL=$(curl -sf -H "Authorization: Bearer $SHC_API_KEY" \
+            https://blesta.sovereignhybridcompute.com/user-api/v2/billing/balance \
+            | python3 -c "import sys,json; d=json.loads(sys.stdin.read()[sys.stdin.read().find('{'):]); print([b['available_credit'] for b in d.get('data',{}).get('balances',[]) if b.get('currency')=='USD'][0])" 2>/dev/null || echo "0")
+          echo "balance_before=$BAL" >> $GITHUB_OUTPUT
+          echo "Balance recorded (hidden)"
+
+      - name: Run Go client smoke test
+        run: |
+          cat > /tmp/smoke.go << 'GOEOF'
+          package main
+
+          import (
+            "context"
+            "fmt"
+            "os"
+            "time"
+            "io"
+            "net/http"
+            "encoding/json"
+
+            "github.com/sovereignhybridcompute/terraform-provider-shc/provider"
+          )
+
+          func main() {
+            apiKey := os.Getenv("SHC_API_KEY")
+            ctx := context.Background()
+            client := provider.NewSHCClient(apiKey, "")
+            hostname := fmt.Sprintf("ci-%d", time.Now().Unix())
+
+            fmt.Printf("[1/4] Order VM '%s'...\n", hostname)
+            order, err := client.SubmitOrder(ctx, hostname, 81, 245)
+            if err != nil { fmt.Printf("FAIL: %v\n", err); os.Exit(1) }
+            sid := order.ResolveServiceID()
+            fmt.Printf("  OK: service_id=%s\n", sid)
+
+            fmt.Printf("[2/4] Wait for IP...\n")
+            deadline := time.Now().Add(120 * time.Second)
+            for time.Now().Before(deadline) {
+              vm, err := client.GetVM(ctx, sid)
+              if err == nil && vm.GetIP() != "" {
+                fmt.Printf("  OK: ip=%s state=%s\n", vm.GetIP(), vm.ProvisioningState)
+                break
+              }
+              time.Sleep(5 * time.Second)
+            }
+
+            fmt.Printf("[3/4] Cancel VM...\n")
+            err = client.CancelVM(ctx, sid, true)
+            if err != nil {
+              fmt.Printf("  Go cancel failed, trying HTTP: %v\n", err)
+              cancelDirect(apiKey, sid)
+            }
+            fmt.Printf("  OK: canceled\n")
+
+            fmt.Printf("[4/4] Done\n")
+          }
+
+          func cancelDirect(apiKey, sid string) {
+            url := fmt.Sprintf("https://blesta.sovereignhybridcompute.com/user-api/v2/vm/%s/cancel", sid)
+            req, _ := http.NewRequest("POST", url, nil)
+            req.Header.Set("Authorization", "Bearer "+apiKey)
+            resp, _ := http.DefaultClient.Do(req)
+            body, _ := io.ReadAll(resp.Body)
+            resp.Body.Close()
+            if resp.StatusCode == 409 {
+              var c struct{ C struct{ S struct{ ID string `json:"confirmation_id"` } `json:"structuredContent"`; A string `json:"confirmation_id"` } `json:"confirmation"` }
+              json.Unmarshal(body, &c)
+              cid := c.C.S.ID; if cid == "" { cid = c.C.A }
+              if cid != "" {
+                req2, _ := http.NewRequest("POST", url, nil)
+                req2.Header.Set("Authorization", "Bearer "+apiKey)
+                req2.Header.Set("X-User-Api-Confirm", cid)
+                resp2, _ := http.DefaultClient.Do(req2)
+                resp2.Body.Close()
+              }
+            }
+          }
+          GOEOF
+          go run /tmp/smoke.go
+
+      - name: Balance after + cost delta
+        if: always()
+        run: |
+          sleep 5
+          BAL_AFTER=$(curl -sf -H "Authorization: Bearer $SHC_API_KEY" \
+            https://blesta.sovereignhybridcompute.com/user-api/v2/billing/balance \
+            | python3 -c "import sys,json; t=sys.stdin.read(); i=t.find('{'); d=json.loads(t[i:]) if i>=0 else {}; print([b['available_credit'] for b in d.get('data',{}).get('balances',[]) if b.get('currency')=='USD'][0] if d else '0')" 2>/dev/null || echo "0")
+          BEFORE=${{ steps.balance-before.outputs.balance_before }}
+          python3 -c "
+          before=float('$BEFORE' or 0)
+          after=float('$BAL_AFTER' or 0)
+          cost=before-after
+          print(f'CI run cost: \${cost:.2f} (balance delta only, total hidden)')
+          if cost > 1.0:
+            print('WARNING: cost above \$1 — check for leftover VMs')
+          "

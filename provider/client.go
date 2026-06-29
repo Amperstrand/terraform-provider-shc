@@ -279,16 +279,25 @@ func (c *SHCClient) GetSnapshots(ctx context.Context, serviceID string) ([]Snaps
 		return nil, fmt.Errorf("get snapshots failed (status %d): %s", statusCode, string(respBody))
 	}
 
+	unwrapped := unwrapData(respBody)
+
 	var snaps []SnapshotResponse
-	if err := json.Unmarshal(respBody, &snaps); err == nil {
+	if err := json.Unmarshal(unwrapped, &snaps); err == nil {
 		return snaps, nil
 	}
 
 	var wrapped struct {
 		Snapshots []SnapshotResponse `json:"snapshots"`
 	}
-	if err := json.Unmarshal(respBody, &wrapped); err == nil {
+	if err := json.Unmarshal(unwrapped, &wrapped); err == nil && wrapped.Snapshots != nil {
 		return wrapped.Snapshots, nil
+	}
+
+	var items struct {
+		Items []SnapshotResponse `json:"items"`
+	}
+	if err := json.Unmarshal(unwrapped, &items); err == nil && items.Items != nil {
+		return items.Items, nil
 	}
 
 	return nil, fmt.Errorf("unable to parse snapshots response: %s", string(respBody))
@@ -369,16 +378,25 @@ func (c *SHCClient) GetBackups(ctx context.Context, serviceID string) ([]BackupR
 		return nil, fmt.Errorf("get backups failed (status %d): %s", statusCode, string(respBody))
 	}
 
+	unwrapped := unwrapData(respBody)
+
 	var backups []BackupResponse
-	if err := json.Unmarshal(respBody, &backups); err == nil {
+	if err := json.Unmarshal(unwrapped, &backups); err == nil {
 		return backups, nil
 	}
 
 	var wrapped struct {
 		Backups []BackupResponse `json:"backups"`
 	}
-	if err := json.Unmarshal(respBody, &wrapped); err == nil {
+	if err := json.Unmarshal(unwrapped, &wrapped); err == nil && wrapped.Backups != nil {
 		return wrapped.Backups, nil
+	}
+
+	var items struct {
+		Items []BackupResponse `json:"items"`
+	}
+	if err := json.Unmarshal(unwrapped, &items); err == nil && items.Items != nil {
+		return items.Items, nil
 	}
 
 	return nil, fmt.Errorf("unable to parse backups response: %s", string(respBody))
@@ -411,4 +429,73 @@ func (c *SHCClient) DeleteBackup(ctx context.Context, serviceID, backupID string
 	}
 
 	return nil
+}
+
+func (c *SHCClient) GetBalance(ctx context.Context) (*BalanceResponse, error) {
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/billing/balance", nil, "")
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("balance endpoint not found")
+	}
+
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("get balance failed (status %d): %s", statusCode, string(respBody))
+	}
+
+	unwrapped := unwrapData(respBody)
+	var bal BalanceResponse
+	if err := json.Unmarshal(unwrapped, &bal); err != nil {
+		return nil, fmt.Errorf("parsing balance response: %w (body: %s)", err, string(respBody))
+	}
+
+	return &bal, nil
+}
+
+type CatalogPackageResponse struct {
+	PackageID int64  `json:"package_id"`
+	Name      string `json:"name"`
+	CPU       int64  `json:"cpu"`
+	MemoryMB  int64  `json:"memory_mb"`
+	DiskGB    int64  `json:"disk_gb"`
+}
+
+func (c *SHCClient) GetCatalog(ctx context.Context) ([]CatalogPackageResponse, error) {
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/ordering/catalog", nil, "")
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("catalog endpoint not found")
+	}
+
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("get catalog failed (status %d): %s", statusCode, string(respBody))
+	}
+
+	unwrapped := unwrapData(respBody)
+
+	var packages []CatalogPackageResponse
+	if err := json.Unmarshal(unwrapped, &packages); err == nil && packages != nil {
+		return packages, nil
+	}
+
+	var items struct {
+		Items []CatalogPackageResponse `json:"items"`
+	}
+	if err := json.Unmarshal(unwrapped, &items); err == nil && items.Items != nil {
+		return items.Items, nil
+	}
+
+	var wrapped struct {
+		Packages []CatalogPackageResponse `json:"packages"`
+	}
+	if err := json.Unmarshal(unwrapped, &wrapped); err == nil && wrapped.Packages != nil {
+		return wrapped.Packages, nil
+	}
+
+	return nil, fmt.Errorf("unable to parse catalog response: %s", string(respBody))
 }

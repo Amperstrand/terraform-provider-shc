@@ -4,12 +4,25 @@ import (
 	"context"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+const storageUnsupportedSummary = "Storage feature not available for this VPS plan"
+
+const storageUnsupportedDetail = "This VPS plan may not support snapshots/backups. Dev VPS plans (pkg 80-84) do not have storage features. Use NVMe/SSD/HDD VPS plans instead."
+
+func isStorageUnsupportedErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "upstream_failure") || strings.Contains(msg, "unable to load storage inventory")
+}
 
 type snapshotResource struct {
 	client *SHCClient
@@ -73,6 +86,19 @@ func (r *snapshotResource) Configure(_ context.Context, req resource.ConfigureRe
 	r.client = client
 }
 
+func (r *snapshotResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, ":")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		resp.Diagnostics.AddError(
+			"Invalid import ID",
+			"Expected import ID in the format service_id:snapshot_id.",
+		)
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("snapshot_id"), parts[1])...)
+}
+
 func (r *snapshotResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan snapshotResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -84,6 +110,10 @@ func (r *snapshotResource) Create(ctx context.Context, req resource.CreateReques
 	name := plan.Name.ValueString()
 	snapResp, err := r.client.CreateSnapshot(ctx, plan.ServiceID.ValueString(), name)
 	if err != nil {
+		if isStorageUnsupportedErr(err) {
+			resp.Diagnostics.AddError(storageUnsupportedSummary, storageUnsupportedDetail)
+			return
+		}
 		resp.Diagnostics.AddError("Error creating snapshot", err.Error())
 		return
 	}
@@ -112,6 +142,10 @@ func (r *snapshotResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	snaps, err := r.client.GetSnapshots(ctx, state.ServiceID.ValueString())
 	if err != nil {
+		if isStorageUnsupportedErr(err) {
+			resp.Diagnostics.AddError(storageUnsupportedSummary, storageUnsupportedDetail)
+			return
+		}
 		resp.Diagnostics.AddError("Error reading snapshots", err.Error())
 		return
 	}
@@ -162,3 +196,4 @@ func (r *snapshotResource) Delete(ctx context.Context, req resource.DeleteReques
 }
 
 var _ resource.Resource = (*snapshotResource)(nil)
+var _ resource.ResourceWithImportState = (*snapshotResource)(nil)

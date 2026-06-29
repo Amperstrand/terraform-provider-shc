@@ -4,10 +4,11 @@ import (
 	"context"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -73,6 +74,19 @@ func (r *backupResource) Configure(_ context.Context, req resource.ConfigureRequ
 	r.client = client
 }
 
+func (r *backupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, ":")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		resp.Diagnostics.AddError(
+			"Invalid import ID",
+			"Expected import ID in the format service_id:backup_id.",
+		)
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("backup_id"), parts[1])...)
+}
+
 func (r *backupResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan backupResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -84,6 +98,10 @@ func (r *backupResource) Create(ctx context.Context, req resource.CreateRequest,
 	name := plan.Name.ValueString()
 	backupResp, err := r.client.CreateBackup(ctx, plan.ServiceID.ValueString(), name)
 	if err != nil {
+		if isStorageUnsupportedErr(err) {
+			resp.Diagnostics.AddError(storageUnsupportedSummary, storageUnsupportedDetail)
+			return
+		}
 		resp.Diagnostics.AddError("Error creating backup", err.Error())
 		return
 	}
@@ -112,6 +130,10 @@ func (r *backupResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	backups, err := r.client.GetBackups(ctx, state.ServiceID.ValueString())
 	if err != nil {
+		if isStorageUnsupportedErr(err) {
+			resp.Diagnostics.AddError(storageUnsupportedSummary, storageUnsupportedDetail)
+			return
+		}
 		resp.Diagnostics.AddError("Error reading backups", err.Error())
 		return
 	}
@@ -162,3 +184,4 @@ func (r *backupResource) Delete(ctx context.Context, req resource.DeleteRequest,
 }
 
 var _ resource.Resource = (*backupResource)(nil)
+var _ resource.ResourceWithImportState = (*backupResource)(nil)

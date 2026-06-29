@@ -9,14 +9,31 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
+
+// Default timeouts applied to VM CRUD operations unless overridden by the
+// practitioner via the "timeouts" block.
+const (
+	defaultVMCreateTimeout = 10 * time.Minute
+	defaultVMReadTimeout   = 5 * time.Minute
+	defaultVMDeleteTimeout = 5 * time.Minute
+)
+
+type vmTimeoutsModel struct {
+	Create types.String `tfsdk:"create"`
+	Read   types.String `tfsdk:"read"`
+	Update types.String `tfsdk:"update"`
+	Delete types.String `tfsdk:"delete"`
+}
 
 type vmResource struct {
 	client *SHCClient
@@ -33,6 +50,7 @@ type vmResourceModel struct {
 	OSUser            types.String `tfsdk:"os_user"`
 	Status            types.String `tfsdk:"status"`
 	ProvisioningState types.String `tfsdk:"provisioning_state"`
+	Timeouts          types.Object `tfsdk:"timeouts"`
 }
 
 func NewVMResource() resource.Resource {
@@ -100,6 +118,29 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				Description: "The provisioning state of the VPS (e.g. ready, provisioning).",
 			},
 		},
+		Blocks: map[string]resourceschema.Block{
+			"timeouts": resourceschema.SingleNestedBlock{
+				Description: "Customizable timeouts for VM operations. Durations are parsed as Go duration strings (e.g. 10m, 1h).",
+				Attributes: map[string]resourceschema.Attribute{
+					"create": resourceschema.StringAttribute{
+						Optional:    true,
+						Description: "Timeout for VM creation. Defaults to 10m.",
+					},
+					"read": resourceschema.StringAttribute{
+						Optional:    true,
+						Description: "Timeout for VM read operations. Defaults to 5m.",
+					},
+					"update": resourceschema.StringAttribute{
+						Optional:    true,
+						Description: "Timeout for VM update operations.",
+					},
+					"delete": resourceschema.StringAttribute{
+						Optional:    true,
+						Description: "Timeout for VM deletion. Defaults to 5m.",
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -116,6 +157,43 @@ func (r *vmResource) Configure(_ context.Context, req resource.ConfigureRequest,
 	r.client = client
 }
 
+func (r *vmResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("service_id"), req, resp)
+}
+
+func parseTimeoutDuration(ctx context.Context, obj types.Object, key string, def time.Duration) time.Duration {
+	if obj.IsNull() || obj.IsUnknown() {
+		return def
+	}
+	var tm vmTimeoutsModel
+	if diags := obj.As(ctx, &tm, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return def
+	}
+	var raw types.String
+	switch key {
+	case "create":
+		raw = tm.Create
+	case "read":
+		raw = tm.Read
+	case "delete":
+		raw = tm.Delete
+	default:
+		return def
+	}
+	if raw.IsNull() || raw.IsUnknown() || raw.ValueString() == "" {
+		return def
+	}
+	d, err := time.ParseDuration(raw.ValueString())
+	if err != nil {
+		return def
+	}
+	return d
+}
+
+func withTimeout(ctx context.Context, obj types.Object, key string, def time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, parseTimeoutDuration(ctx, obj, key, def))
+}
+
 func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan vmResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -123,6 +201,9 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	ctx, cancel := withTimeout(ctx, plan.Timeouts, "create", defaultVMCreateTimeout)
+	defer cancel()
 
 	orderResp, err := r.client.SubmitOrder(ctx, plan.Hostname.ValueString(), plan.PackageID.ValueInt64(), plan.PricingID.ValueInt64())
 	if err != nil {
@@ -233,6 +314,9 @@ func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 		return
 	}
 
+	ctx, cancel := withTimeout(ctx, state.Timeouts, "read", defaultVMReadTimeout)
+	defer cancel()
+
 	vm, err := r.client.GetVM(ctx, state.ServiceID.ValueString())
 	if err != nil {
 		if errors.Is(err, ErrVMNotFound) {
@@ -246,14 +330,8 @@ func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 	state.IP = types.StringValue(vm.GetIP())
 	state.Status = types.StringValue(vm.Status)
 	state.ProvisioningState = types.StringValue(vm.ProvisioningState)
-
-	if vm.Hostname != "" {
-		state.Hostname = types.StringValue(vm.Hostname)
-	}
-
-	if vm.OSUser != "" {
-		state.OSUser = types.StringValue(vm.OSUser)
-	}
+	state.Hostname = types.StringValue(vm.Hostname)
+	state.OSUser = types.StringValue(vm.OSUser)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -274,6 +352,9 @@ func (r *vmResource) Delete(ctx context.Context, req resource.DeleteRequest, res
 		return
 	}
 
+	ctx, cancel := withTimeout(ctx, state.Timeouts, "delete", defaultVMDeleteTimeout)
+	defer cancel()
+
 	err := r.client.CancelVM(ctx, state.ServiceID.ValueString(), true)
 	if err != nil {
 		resp.Diagnostics.AddError("Error deleting VM", err.Error())
@@ -282,6 +363,7 @@ func (r *vmResource) Delete(ctx context.Context, req resource.DeleteRequest, res
 }
 
 var _ resource.Resource = (*vmResource)(nil)
+var _ resource.ResourceWithImportState = (*vmResource)(nil)
 
 type vmDataSource struct {
 	client *SHCClient

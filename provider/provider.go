@@ -1,5 +1,7 @@
 package provider
 
+//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.21.0 generate
+
 import (
 	"context"
 	"fmt"
@@ -87,6 +89,7 @@ func (p *SHCProvider) Resources(_ context.Context) []func() resource.Resource {
 func (p *SHCProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewVMDataSource,
+		NewCatalogDataSource,
 	}
 }
 

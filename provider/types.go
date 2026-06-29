@@ -105,6 +105,12 @@ type BackupResponse struct {
 	Date   string         `json:"date"`
 }
 
+type BalanceResponse struct {
+	Balance  flexibleString `json:"balance"`
+	Credit   flexibleString `json:"credit"`
+	Currency string         `json:"currency"`
+}
+
 type confirmationResponse struct {
 	Error struct {
 		Code string `json:"code"`
