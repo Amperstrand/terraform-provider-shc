@@ -42,6 +42,7 @@ type vmResource struct {
 
 type vmResourceModel struct {
 	Hostname          types.String `tfsdk:"hostname"`
+	Size              types.String `tfsdk:"size"`
 	PackageID         types.Int64  `tfsdk:"package_id"`
 	PricingID         types.Int64  `tfsdk:"pricing_id"`
 	SSHKey            types.String `tfsdk:"ssh_key"`
@@ -75,8 +76,8 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				},
 			},
 		"package_id": resourceschema.Int64Attribute{
-			Required:    true,
-			Description: "The SHC package ID. Use `data shc_catalog` to discover valid values. Changing this triggers an in-place upgrade; only upgrades (more CPU/RAM/disk) are supported by the SHC API.",
+			Optional:    true,
+			Description: "The SHC package ID. Use `data shc_catalog` to discover valid values, or use `size` for a human-readable alias. Changing this triggers an in-place upgrade; only upgrades (more CPU/RAM/disk) are supported by the SHC API.",
 			PlanModifiers: []planmodifier.Int64{
 				packageIDUpgrade(),
 			},
@@ -85,11 +86,15 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			},
 		},
 		"pricing_id": resourceschema.Int64Attribute{
-			Required:    true,
-			Description: "The SHC pricing ID for the chosen package. Use `data shc_catalog` to discover valid values. Changing this triggers an in-place upgrade via the SHC upgrade API.",
+			Optional:    true,
+			Description: "The SHC pricing ID for the chosen package. Use `data shc_catalog` to discover valid values, or use `size` for a human-readable alias. Changing this triggers an in-place upgrade via the SHC upgrade API.",
 			Validators: []validator.Int64{
 				positiveInt64(),
 			},
+		},
+		"size": resourceschema.StringAttribute{
+			Optional:    true,
+			Description: "Named size: starter, standard, professional, business, enterprise, dev-starter, dev-standard, dev-professional, dev-business, dev-enterprise. Takes precedence over package_id/pricing_id when both are set.",
 		},
 			"ssh_key": resourceschema.StringAttribute{
 				Optional:    true,
@@ -216,21 +221,25 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 		return
 	}
 
-	// Runtime validation guard: even though schema validators catch most
-	// issues, this provides defense-in-depth before making API calls.
-	if plan.PackageID.ValueInt64() <= 0 {
-		resp.Diagnostics.AddError(
-			"Invalid package_id",
-			fmt.Sprintf("package_id must be a positive integer, got: %d", plan.PackageID.ValueInt64()),
-		)
-		return
-	}
-	if plan.PricingID.ValueInt64() <= 0 {
-		resp.Diagnostics.AddError(
-			"Invalid pricing_id",
-			fmt.Sprintf("pricing_id must be a positive integer, got: %d", plan.PricingID.ValueInt64()),
-		)
-		return
+	// Resolve the size abstraction. If `size` is set it takes precedence over
+	// package_id/pricing_id. At least one of (size) or (package_id+pricing_id)
+	// must be provided, otherwise we cannot submit an order.
+	if !plan.Size.IsNull() && plan.Size.ValueString() != "" {
+		pkgID, priceID, err := resolveSize(plan.Size.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Invalid size", err.Error())
+			return
+		}
+		plan.PackageID = types.Int64Value(pkgID)
+		plan.PricingID = types.Int64Value(priceID)
+	} else {
+		if plan.PackageID.ValueInt64() <= 0 || plan.PricingID.ValueInt64() <= 0 {
+			resp.Diagnostics.AddError(
+				"Missing size or package_id/pricing_id",
+				"Provide either 'size' (e.g. \"standard\") or both 'package_id' and 'pricing_id'.",
+			)
+			return
+		}
 	}
 
 	ctx, cancel := withTimeout(ctx, plan.Timeouts, "create", defaultVMCreateTimeout)
@@ -383,13 +392,29 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 		return
 	}
 
+	// Resolve the effective pricing_id: if `size` is set it takes precedence
+	// and may resolve to a new plan, triggering an in-place upgrade.
+	var effectivePricingID int64
+	if !plan.Size.IsNull() && plan.Size.ValueString() != "" {
+		pkgID, priceID, err := resolveSize(plan.Size.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Invalid size", err.Error())
+			return
+		}
+		effectivePricingID = priceID
+		plan.PackageID = types.Int64Value(pkgID)
+		plan.PricingID = types.Int64Value(priceID)
+	} else {
+		effectivePricingID = plan.PricingID.ValueInt64()
+	}
+
 	// In-place upgrade: pricing_ref in the API equals pricing_id from the
 	// catalog. The upgrade is queued async (prorated invoice, resize after payment).
-	if plan.PricingID.ValueInt64() != state.PricingID.ValueInt64() {
-		if err := r.client.UpgradeVM(ctx, state.ServiceID.ValueString(), plan.PricingID.ValueInt64()); err != nil {
+	if effectivePricingID != state.PricingID.ValueInt64() {
+		if err := r.client.UpgradeVM(ctx, state.ServiceID.ValueString(), effectivePricingID); err != nil {
 			resp.Diagnostics.AddError(
 				"Error upgrading VM",
-				fmt.Sprintf("Could not upgrade VM %s to pricing_id %d: %s", state.ServiceID.ValueString(), plan.PricingID.ValueInt64(), err),
+				fmt.Sprintf("Could not upgrade VM %s to pricing_id %d: %s", state.ServiceID.ValueString(), effectivePricingID, err),
 			)
 			return
 		}

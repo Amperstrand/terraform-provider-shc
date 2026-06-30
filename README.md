@@ -103,8 +103,9 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | Argument      | Type   | Required | Description |
 |---------------|--------|----------|-------------|
 | `hostname`    | string | yes      | The hostname for the VPS. Changing this forces replacement. |
-| `package_id`  | number | yes      | The SHC package ID (81=Standard, 82=Professional, 83=Business). Changing this triggers an in-place upgrade. |
-| `pricing_id`  | number | yes      | The SHC pricing ID (245=Standard, 249=Professional, 253=Business). Changing this triggers an in-place upgrade. |
+| `size`        | string | no       | Named size: `starter`, `standard`, `professional`, `business`, `enterprise` (NVMe), or `dev-starter`, `dev-standard`, `dev-professional`, `dev-business`, `dev-enterprise` (Dev VPS). Takes precedence over `package_id`/`pricing_id`. |
+| `package_id`  | number | no       | The SHC package ID (81=Standard, 82=Professional, 83=Business). Required if `size` is not set. Changing this triggers an in-place upgrade. |
+| `pricing_id`  | number | no       | The SHC pricing ID (245=Standard, 249=Professional, 253=Business). Required if `size` is not set. Changing this triggers an in-place upgrade. |
 | `ssh_key`     | string | no       | SSH public key to apply after provisioning. |
 | `auto_cancel` | bool   | no       | If `true` (default), schedules end-of-term cancellation so the VPS does not auto-renew. |
 | `power_state` | string | no       | The desired power state: `running` (default) or `stopped`. Changing this triggers a start/stop action without replacing the VM. |
@@ -116,6 +117,22 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | `os_user`            | string | yes      | The default OS user for SSH login (typically `debian`). |
 | `status`             | string | yes      | The current service status. |
 | `provisioning_state` | string | yes      | The provisioning state (`ready`, `provisioning`, etc.). |
+
+### Size abstraction
+
+Instead of `package_id` and `pricing_id`, use `size` for a human-readable plan name:
+
+```hcl
+resource "shc_vm" "web" {
+  hostname = "web"
+  size     = "standard"
+}
+```
+
+Available sizes: starter, standard, professional, business, enterprise (NVMe);
+dev-starter, dev-standard, dev-professional, dev-business, dev-enterprise (Dev VPS).
+
+Changing `size` on an existing VM triggers an in-place upgrade.
 
 ### Upgrading a VM
 
