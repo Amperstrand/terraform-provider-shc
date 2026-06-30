@@ -92,6 +92,8 @@ func (p *SHCProvider) DataSources(_ context.Context) []func() datasource.DataSou
 	return []func() datasource.DataSource{
 		NewVMDataSource,
 		NewCatalogDataSource,
+		NewTemplatesDataSource,
+		NewMachineTypesDataSource,
 	}
 }
 

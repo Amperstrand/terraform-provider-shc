@@ -156,3 +156,10 @@ type RDNSRecord struct {
 	IP       string `json:"ip"`
 	Hostname string `json:"hostname"`
 }
+
+type TemplateResponse struct {
+	Name   string `json:"name"`
+	Family string `json:"family"`
+	Arch   string `json:"arch"`
+	Status string `json:"status"`
+}

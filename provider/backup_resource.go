@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -19,6 +20,7 @@ type backupResource struct {
 type backupResourceModel struct {
 	ServiceID types.String `tfsdk:"service_id"`
 	Name      types.String `tfsdk:"name"`
+	Restore   types.Bool   `tfsdk:"restore"`
 	BackupID  types.String `tfsdk:"backup_id"`
 	Status    types.String `tfsdk:"status"`
 }
@@ -48,6 +50,12 @@ func (r *backupResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+			},
+			"restore": resourceschema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "When true, triggers a one-shot restore of the VM from this backup on the next apply. Resets to false after the restore completes.",
+				Default:     booldefault.StaticBool(false),
 			},
 			"backup_id": resourceschema.StringAttribute{
 				Computed:    true,
@@ -159,11 +167,43 @@ func (r *backupResource) Read(ctx context.Context, req resource.ReadRequest, res
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *backupResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError(
-		"Update not supported",
-		"SHC backups cannot be updated. Recreate the resource to change its configuration.",
-	)
+func (r *backupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan, state backupResourceModel
+
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// One-shot restore action: triggered when restore changes from false to true.
+	if plan.Restore.ValueBool() && !state.Restore.ValueBool() {
+		err := r.client.RestoreBackup(ctx, state.ServiceID.ValueString(), state.BackupID.ValueString())
+		if err != nil {
+			if isStorageUnsupportedErr(err) {
+				resp.Diagnostics.AddError(storageUnsupportedSummary, storageUnsupportedDetail)
+				return
+			}
+			resp.Diagnostics.AddError("Error restoring backup", err.Error())
+			return
+		}
+	}
+
+	// Restore is a one-shot action: always reset to false after processing.
+	plan.Restore = types.BoolValue(false)
+
+	// Carry forward computed fields from state.
+	plan.BackupID = state.BackupID
+	plan.Status = state.Status
+
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *backupResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

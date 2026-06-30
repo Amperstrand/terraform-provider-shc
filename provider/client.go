@@ -454,12 +454,19 @@ func (c *SHCClient) GetBalance(ctx context.Context) (*BalanceResponse, error) {
 	return &bal, nil
 }
 
+type CatalogPricingResponse struct {
+	Period    string         `json:"period"`
+	Price     flexibleString `json:"price"`
+	PricingID int64          `json:"pricing_id"`
+}
+
 type CatalogPackageResponse struct {
-	PackageID int64  `json:"package_id"`
-	Name      string `json:"name"`
-	CPU       int64  `json:"cpu"`
-	MemoryMB  int64  `json:"memory_mb"`
-	DiskGB    int64  `json:"disk_gb"`
+	PackageID int64                    `json:"package_id"`
+	Name      string                   `json:"name"`
+	CPU       int64                    `json:"cpu"`
+	MemoryMB  int64                    `json:"memory_mb"`
+	DiskGB    int64                    `json:"disk_gb"`
+	Pricing   []CatalogPricingResponse `json:"pricing"`
 }
 
 func (c *SHCClient) SetPowerState(ctx context.Context, serviceID, action string) error {
@@ -713,4 +720,92 @@ func (c *SHCClient) GetCatalog(ctx context.Context) ([]CatalogPackageResponse, e
 	}
 
 	return nil, fmt.Errorf("unable to parse catalog response: %s", string(respBody))
+}
+
+func (c *SHCClient) GetTemplates(ctx context.Context) ([]TemplateResponse, error) {
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/vm/templates", nil, "")
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("templates endpoint not found")
+	}
+
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("get templates failed (status %d): %s", statusCode, string(respBody))
+	}
+
+	unwrapped := unwrapData(respBody)
+
+	var templates []TemplateResponse
+	if err := json.Unmarshal(unwrapped, &templates); err == nil && templates != nil {
+		return templates, nil
+	}
+
+	var items struct {
+		Items []TemplateResponse `json:"items"`
+	}
+	if err := json.Unmarshal(unwrapped, &items); err == nil && items.Items != nil {
+		return items.Items, nil
+	}
+
+	var wrapped struct {
+		Templates []TemplateResponse `json:"templates"`
+	}
+	if err := json.Unmarshal(unwrapped, &wrapped); err == nil && wrapped.Templates != nil {
+		return wrapped.Templates, nil
+	}
+
+	return nil, fmt.Errorf("unable to parse templates response: %s", string(respBody))
+}
+
+func (c *SHCClient) RestoreSnapshot(ctx context.Context, serviceID, snapshotID string) error {
+	path := "/vm/" + serviceID + "/snapshots/restore"
+
+	body, err := json.Marshal(map[string]string{"snapshot_id": snapshotID})
+	if err != nil {
+		return fmt.Errorf("marshaling restore snapshot request: %w", err)
+	}
+
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodPost, path, body, "")
+	if err != nil {
+		return err
+	}
+
+	if statusCode == http.StatusConflict {
+		_, err = c.handleConfirmation(ctx, http.MethodPost, path, body, respBody)
+		return err
+	}
+
+	if statusCode >= 400 {
+		return fmt.Errorf("restore snapshot failed (status %d): %s", statusCode, string(respBody))
+	}
+
+	return nil
+}
+
+func (c *SHCClient) RestoreBackup(ctx context.Context, serviceID, backupID string) error {
+	path := "/vm/" + serviceID + "/backups/restore"
+
+	body, err := json.Marshal(map[string]string{"backup_id": backupID})
+	if err != nil {
+		return fmt.Errorf("marshaling restore backup request: %w", err)
+	}
+
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodPost, path, body, "")
+	if err != nil {
+		return err
+	}
+
+	if statusCode == http.StatusConflict {
+		_, err = c.handleConfirmation(ctx, http.MethodPost, path, body, respBody)
+		return err
+	}
+
+	if statusCode >= 400 {
+		return fmt.Errorf("restore backup failed (status %d): %s", statusCode, string(respBody))
+	}
+
+	return nil
 }
