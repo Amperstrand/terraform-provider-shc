@@ -3,8 +3,11 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -360,5 +363,115 @@ func TestGetCatalog_ArrayFormat(t *testing.T) {
 	}
 	if packages[0].PackageID != 23 {
 		t.Errorf("expected package_id 23, got %d", packages[0].PackageID)
+	}
+}
+
+func TestRetryOnLock_RetriesOnLocked(t *testing.T) {
+	callCount := 0
+	err := retryOnLock(context.Background(), func() error {
+		callCount++
+		if callCount < 3 {
+			return fmt.Errorf("VM is locked (backup)")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("expected nil error after retries, got: %v", err)
+	}
+	if callCount != 3 {
+		t.Errorf("expected 3 calls, got %d", callCount)
+	}
+}
+
+func TestRetryOnLock_DoesNotRetryNonLockedError(t *testing.T) {
+	callCount := 0
+	err := retryOnLock(context.Background(), func() error {
+		callCount++
+		return fmt.Errorf("some other error")
+	})
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "some other error") {
+		t.Errorf("expected original error to be preserved, got: %v", err)
+	}
+	if callCount != 1 {
+		t.Errorf("expected 1 call (no retry), got %d", callCount)
+	}
+}
+
+func TestRetryOnLock_ExhaustsRetries(t *testing.T) {
+	callCount := 0
+	err := retryOnLock(context.Background(), func() error {
+		callCount++
+		return fmt.Errorf("VM is locked (backup)")
+	})
+	if err == nil {
+		t.Fatalf("expected error after retries exhausted, got nil")
+	}
+	if !strings.Contains(err.Error(), "VM is locked by a running job") {
+		t.Errorf("expected locked message, got: %v", err)
+	}
+	if callCount != lockMaxRetries+1 {
+		t.Errorf("expected %d calls (1 initial + %d retries), got %d", lockMaxRetries+1, lockMaxRetries, callCount)
+	}
+}
+
+func TestRetryOnLockValue_RetriesOnLocked(t *testing.T) {
+	callCount := 0
+	result, err := retryOnLockValue(context.Background(), func() (string, error) {
+		callCount++
+		if callCount < 2 {
+			return "", fmt.Errorf("VM is locked (snapshot)")
+		}
+		return "ok", nil
+	})
+	if err != nil {
+		t.Fatalf("expected nil error after retry, got: %v", err)
+	}
+	if result != "ok" {
+		t.Errorf("expected result 'ok', got %q", result)
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 calls, got %d", callCount)
+	}
+}
+
+func TestCancelVM_RetriesOnLocked(t *testing.T) {
+	callCount := 0
+	err := retryOnLock(context.Background(), func() error {
+		callCount++
+		if callCount < 2 {
+			return errors.New("VM is locked (backup)")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("expected nil after retry, got: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 calls, got %d", callCount)
+	}
+}
+
+func TestIsVMLockedErr(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil error", nil, false},
+		{"locked backup", fmt.Errorf("VM is locked (backup)"), true},
+		{"locked snapshot", fmt.Errorf("vm is locked (snapshot)"), true},
+		{"locked lowercase", fmt.Errorf("the vm is locked by a running job"), true},
+		{"not locked", fmt.Errorf("some other error"), false},
+		{"not found", fmt.Errorf("not found"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isVMLockedErr(tt.err); got != tt.want {
+				t.Errorf("isVMLockedErr(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }

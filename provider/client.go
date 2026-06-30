@@ -16,6 +16,61 @@ const defaultBaseURL = "https://blesta.sovereignhybridcompute.com/user-api/v2"
 
 var ErrVMNotFound = errors.New("vm not found")
 
+const (
+	lockRetryDelay  = 5 * time.Second
+	lockMaxRetries  = 3
+)
+
+func isVMLockedErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "locked")
+}
+
+func retryOnLock(ctx context.Context, fn func() error) error {
+	var lastErr error
+	for attempt := 0; attempt <= lockMaxRetries; attempt++ {
+		lastErr = fn()
+		if lastErr == nil {
+			return nil
+		}
+		if !isVMLockedErr(lastErr) {
+			return lastErr
+		}
+		if attempt < lockMaxRetries {
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("context cancelled while waiting for locked VM: %w", lastErr)
+			case <-time.After(lockRetryDelay):
+			}
+		}
+	}
+	return fmt.Errorf("VM is locked by a running job after %d retries: %w", lockMaxRetries, lastErr)
+}
+
+func retryOnLockValue[T any](ctx context.Context, fn func() (T, error)) (T, error) {
+	var result T
+	var lastErr error
+	for attempt := 0; attempt <= lockMaxRetries; attempt++ {
+		result, lastErr = fn()
+		if lastErr == nil {
+			return result, nil
+		}
+		if !isVMLockedErr(lastErr) {
+			return result, lastErr
+		}
+		if attempt < lockMaxRetries {
+			select {
+			case <-ctx.Done():
+				return result, fmt.Errorf("context cancelled while waiting for locked VM: %w", lastErr)
+			case <-time.After(lockRetryDelay):
+			}
+		}
+	}
+	return result, fmt.Errorf("VM is locked by a running job after %d retries: %w", lockMaxRetries, lastErr)
+}
+
 type SHCClient struct {
 	baseURL    string
 	apiKey     string
@@ -179,6 +234,12 @@ func (c *SHCClient) GetVM(ctx context.Context, serviceID string) (*VMResponse, e
 }
 
 func (c *SHCClient) CancelVM(ctx context.Context, serviceID string, immediate bool) error {
+	return retryOnLock(ctx, func() error {
+		return c.cancelVMOnce(ctx, serviceID, immediate)
+	})
+}
+
+func (c *SHCClient) cancelVMOnce(ctx context.Context, serviceID string, immediate bool) error {
 	path := "/vm/" + serviceID + "/cancel"
 
 	cancelReq := CancelRequest{Immediate: immediate}
@@ -234,6 +295,12 @@ func (c *SHCClient) ApplySSHKey(ctx context.Context, serviceID, sshKey string) e
 }
 
 func (c *SHCClient) CreateSnapshot(ctx context.Context, serviceID, name string) (*SnapshotResponse, error) {
+	return retryOnLockValue(ctx, func() (*SnapshotResponse, error) {
+		return c.createSnapshotOnce(ctx, serviceID, name)
+	})
+}
+
+func (c *SHCClient) createSnapshotOnce(ctx context.Context, serviceID, name string) (*SnapshotResponse, error) {
 	path := "/vm/" + serviceID + "/snapshots"
 
 	body, err := json.Marshal(map[string]string{"name": name})
@@ -304,6 +371,12 @@ func (c *SHCClient) GetSnapshots(ctx context.Context, serviceID string) ([]Snaps
 }
 
 func (c *SHCClient) DeleteSnapshot(ctx context.Context, serviceID, snapshotID string) error {
+	return retryOnLock(ctx, func() error {
+		return c.deleteSnapshotOnce(ctx, serviceID, snapshotID)
+	})
+}
+
+func (c *SHCClient) deleteSnapshotOnce(ctx context.Context, serviceID, snapshotID string) error {
 	path := "/vm/" + serviceID + "/snapshots/delete"
 
 	body, err := json.Marshal(map[string]string{"snapshot_id": snapshotID})
@@ -333,6 +406,12 @@ func (c *SHCClient) DeleteSnapshot(ctx context.Context, serviceID, snapshotID st
 }
 
 func (c *SHCClient) CreateBackup(ctx context.Context, serviceID, name string) (*BackupResponse, error) {
+	return retryOnLockValue(ctx, func() (*BackupResponse, error) {
+		return c.createBackupOnce(ctx, serviceID, name)
+	})
+}
+
+func (c *SHCClient) createBackupOnce(ctx context.Context, serviceID, name string) (*BackupResponse, error) {
 	path := "/vm/" + serviceID + "/backups"
 
 	body, err := json.Marshal(map[string]string{"name": name})
@@ -403,6 +482,12 @@ func (c *SHCClient) GetBackups(ctx context.Context, serviceID string) ([]BackupR
 }
 
 func (c *SHCClient) DeleteBackup(ctx context.Context, serviceID, backupID string) error {
+	return retryOnLock(ctx, func() error {
+		return c.deleteBackupOnce(ctx, serviceID, backupID)
+	})
+}
+
+func (c *SHCClient) deleteBackupOnce(ctx context.Context, serviceID, backupID string) error {
 	path := "/vm/" + serviceID + "/backups/delete"
 
 	body, err := json.Marshal(map[string]string{"backup_id": backupID})

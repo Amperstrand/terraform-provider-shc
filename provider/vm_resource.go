@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -74,20 +75,26 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"package_id": resourceschema.Int64Attribute{
-				Required:    true,
-				Description: "The SHC package ID (e.g. 81=Standard, 82=Professional, 83=Business).",
-				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
-				},
+		"package_id": resourceschema.Int64Attribute{
+			Required:    true,
+			Description: "The SHC package ID. Use `data shc_catalog` to discover valid values. Only upgrades are supported in-place by the SHC API; downgrades are not supported and will force replacement.",
+			PlanModifiers: []planmodifier.Int64{
+				packageIDUpgrade(),
 			},
-			"pricing_id": resourceschema.Int64Attribute{
-				Required:    true,
-				Description: "The SHC pricing ID (e.g. 245=Standard, 249=Professional, 253=Business).",
-				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
-				},
+			Validators: []validator.Int64{
+				positiveInt64(),
 			},
+		},
+		"pricing_id": resourceschema.Int64Attribute{
+			Required:    true,
+			Description: "The SHC pricing ID for the chosen package. Use `data shc_catalog` to discover valid values for each package.",
+			PlanModifiers: []planmodifier.Int64{
+				int64planmodifier.RequiresReplace(),
+			},
+			Validators: []validator.Int64{
+				positiveInt64(),
+			},
+		},
 			"ssh_key": resourceschema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
@@ -99,12 +106,15 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				Description: "If true (default), schedules an end-of-term cancellation so the VPS does not auto-renew.",
 				Default:     booldefault.StaticBool(true),
 			},
-			"power_state": resourceschema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "The desired power state: running or stopped. Defaults to running. Changing this triggers a start/stop action without replacing the VM.",
-				Default:     stringdefault.StaticString("running"),
+		"power_state": resourceschema.StringAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "The desired power state: `running` or `stopped`. Defaults to `running`. Changing this triggers a start/stop action without replacing the VM.",
+			Default:     stringdefault.StaticString("running"),
+			Validators: []validator.String{
+				powerState(),
 			},
+		},
 			"ip": resourceschema.StringAttribute{
 				Computed:    true,
 				Description: "The primary IP address of the VPS.",
@@ -207,6 +217,23 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Runtime validation guard: even though schema validators catch most
+	// issues, this provides defense-in-depth before making API calls.
+	if plan.PackageID.ValueInt64() <= 0 {
+		resp.Diagnostics.AddError(
+			"Invalid package_id",
+			fmt.Sprintf("package_id must be a positive integer, got: %d", plan.PackageID.ValueInt64()),
+		)
+		return
+	}
+	if plan.PricingID.ValueInt64() <= 0 {
+		resp.Diagnostics.AddError(
+			"Invalid pricing_id",
+			fmt.Sprintf("pricing_id must be a positive integer, got: %d", plan.PricingID.ValueInt64()),
+		)
 		return
 	}
 
