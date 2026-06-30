@@ -475,3 +475,81 @@ func TestIsVMLockedErr(t *testing.T) {
 		})
 	}
 }
+
+func TestUpgradeVM(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/vm/123/upgrade" {
+			t.Errorf("expected path /vm/123/upgrade, got %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPatch {
+			t.Errorf("expected PATCH, got %s", r.Method)
+		}
+
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+		if body["pricing_ref"] != float64(249) {
+			t.Errorf("expected pricing_ref 249, got %v", body["pricing_ref"])
+		}
+		if body["idempotency_key"] == nil || body["idempotency_key"] == "" {
+			t.Errorf("expected non-empty idempotency_key")
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": map[string]interface{}{
+				"applies": "queued",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewSHCClient("test-key", server.URL)
+	err := client.UpgradeVM(context.Background(), "123", 249)
+	if err != nil {
+		t.Fatalf("UpgradeVM failed: %v", err)
+	}
+}
+
+func TestUpgradeVM_ConfirmationFlow(t *testing.T) {
+	callCount := 0
+	var receivedConfirmID string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			if r.Header.Get("X-User-Api-Confirm") != "" {
+				t.Errorf("first call should not have confirm header")
+			}
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"confirmation": map[string]interface{}{
+					"structuredContent": map[string]interface{}{
+						"confirmation_id": "conf-upgrade-xyz",
+					},
+				},
+			})
+			return
+		}
+		receivedConfirmID = r.Header.Get("X-User-Api-Confirm")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": map[string]interface{}{
+				"applies": "queued",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewSHCClient("test-key", server.URL)
+	err := client.UpgradeVM(context.Background(), "123", 249)
+	if err != nil {
+		t.Fatalf("UpgradeVM with confirmation failed: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 calls, got %d", callCount)
+	}
+	if receivedConfirmID != "conf-upgrade-xyz" {
+		t.Errorf("expected confirm ID 'conf-upgrade-xyz', got %q", receivedConfirmID)
+	}
+}

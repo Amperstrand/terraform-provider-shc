@@ -103,8 +103,8 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | Argument      | Type   | Required | Description |
 |---------------|--------|----------|-------------|
 | `hostname`    | string | yes      | The hostname for the VPS. Changing this forces replacement. |
-| `package_id`  | number | yes      | The SHC package ID (81=Standard, 82=Professional, 83=Business). Changing this forces replacement. |
-| `pricing_id`  | number | yes      | The SHC pricing ID (245=Standard, 249=Professional, 253=Business). Changing this forces replacement. |
+| `package_id`  | number | yes      | The SHC package ID (81=Standard, 82=Professional, 83=Business). Changing this triggers an in-place upgrade. |
+| `pricing_id`  | number | yes      | The SHC pricing ID (245=Standard, 249=Professional, 253=Business). Changing this triggers an in-place upgrade. |
 | `ssh_key`     | string | no       | SSH public key to apply after provisioning. |
 | `auto_cancel` | bool   | no       | If `true` (default), schedules end-of-term cancellation so the VPS does not auto-renew. |
 | `power_state` | string | no       | The desired power state: `running` (default) or `stopped`. Changing this triggers a start/stop action without replacing the VM. |
@@ -116,6 +116,24 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | `os_user`            | string | yes      | The default OS user for SSH login (typically `debian`). |
 | `status`             | string | yes      | The current service status. |
 | `provisioning_state` | string | yes      | The provisioning state (`ready`, `provisioning`, etc.). |
+
+### Upgrading a VM
+
+Changing `package_id` and `pricing_id` on an existing VM triggers an in-place upgrade
+instead of destroy/recreate. The upgrade is queued — it creates a prorated invoice and
+the VM is resized after payment.
+
+Only upgrades (more CPU/RAM/disk) are supported. Disk-reducing changes are rejected by
+the API with a 422 error.
+
+```hcl
+# Upgrade from Standard to Professional
+resource "shc_vm" "web" {
+  hostname   = "web-server"
+  package_id = 82  # was 81
+  pricing_id = 249 # was 245
+}
+```
 
 ### shc_snapshot
 

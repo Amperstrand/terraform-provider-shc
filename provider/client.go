@@ -894,3 +894,40 @@ func (c *SHCClient) RestoreBackup(ctx context.Context, serviceID, backupID strin
 
 	return nil
 }
+
+func (c *SHCClient) UpgradeVM(ctx context.Context, serviceID string, pricingRef int64) error {
+	path := "/vm/" + serviceID + "/upgrade"
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"pricing_ref":     pricingRef,
+		"idempotency_key": fmt.Sprintf("tf-upgrade-%d", time.Now().UnixNano()),
+	})
+
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodPatch, path, body, "")
+	if err != nil {
+		return err
+	}
+
+	if statusCode == http.StatusConflict {
+		_, err = c.handleConfirmation(ctx, http.MethodPatch, path, body, respBody)
+		return err
+	}
+
+	if statusCode >= 400 {
+		return fmt.Errorf("upgrade failed (status %d): %s", statusCode, string(respBody))
+	}
+
+	return nil
+}
+
+func (c *SHCClient) ListUpgradeOptions(ctx context.Context, serviceID string) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/upgrade-options"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("list upgrade options failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}

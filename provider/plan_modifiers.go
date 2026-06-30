@@ -9,12 +9,12 @@ import (
 
 // packageIDUpgradePlanModifier warns practitioners that only upgrades
 // (not downgrades) are supported by the SHC API when package_id changes.
-// Since the current behaviour forces replacement (delete + recreate),
-// this modifier also signals RequiresReplace.
+// Upgrades are handled in-place via the Update method; disk-reducing
+// downgrades will be rejected by the API with a 422 error.
 type packageIDUpgradePlanModifier struct{}
 
 func (m packageIDUpgradePlanModifier) Description(_ context.Context) string {
-	return "When package_id changes, forces replacement and warns that only upgrades are supported in-place by the SHC API."
+	return "When package_id changes, triggers an in-place upgrade. Only upgrades are supported by the SHC API; downgrades are rejected."
 }
 
 func (m packageIDUpgradePlanModifier) MarkdownDescription(_ context.Context) string {
@@ -33,23 +33,13 @@ func (m packageIDUpgradePlanModifier) PlanModifyInt64(_ context.Context, req pla
 		return
 	}
 
-	resp.RequiresReplace = true
-
 	if planPkg < statePkg {
 		resp.Diagnostics.AddWarning(
 			"Package downgrade detected",
 			fmt.Sprintf(
-				"Changing package_id from %d to %d forces replacement (delete + recreate). "+
-					"The SHC API does not support in-place downgrades. The existing VM will be cancelled.",
-				statePkg, planPkg,
-			),
-		)
-	} else {
-		resp.Diagnostics.AddWarning(
-			"Package change forces replacement",
-			fmt.Sprintf(
-				"Changing package_id from %d to %d forces replacement (delete + recreate). "+
-					"Only upgrades are supported in-place by the SHC API, but the provider currently recreates the VM for safety.",
+				"Changing package_id from %d to %d will trigger an in-place upgrade request, "+
+					"but the SHC API does not support downgrades (disk-reducing changes are rejected with a 422 error). "+
+					"The apply will fail unless the target package has equal or greater resources.",
 				statePkg, planPkg,
 			),
 		)

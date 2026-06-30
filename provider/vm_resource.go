@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -77,7 +76,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			},
 		"package_id": resourceschema.Int64Attribute{
 			Required:    true,
-			Description: "The SHC package ID. Use `data shc_catalog` to discover valid values. Only upgrades are supported in-place by the SHC API; downgrades are not supported and will force replacement.",
+			Description: "The SHC package ID. Use `data shc_catalog` to discover valid values. Changing this triggers an in-place upgrade; only upgrades (more CPU/RAM/disk) are supported by the SHC API.",
 			PlanModifiers: []planmodifier.Int64{
 				packageIDUpgrade(),
 			},
@@ -87,10 +86,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 		},
 		"pricing_id": resourceschema.Int64Attribute{
 			Required:    true,
-			Description: "The SHC pricing ID for the chosen package. Use `data shc_catalog` to discover valid values for each package.",
-			PlanModifiers: []planmodifier.Int64{
-				int64planmodifier.RequiresReplace(),
-			},
+			Description: "The SHC pricing ID for the chosen package. Use `data shc_catalog` to discover valid values. Changing this triggers an in-place upgrade via the SHC upgrade API.",
 			Validators: []validator.Int64{
 				positiveInt64(),
 			},
@@ -385,6 +381,18 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	// In-place upgrade: pricing_ref in the API equals pricing_id from the
+	// catalog. The upgrade is queued async (prorated invoice, resize after payment).
+	if plan.PricingID.ValueInt64() != state.PricingID.ValueInt64() {
+		if err := r.client.UpgradeVM(ctx, state.ServiceID.ValueString(), plan.PricingID.ValueInt64()); err != nil {
+			resp.Diagnostics.AddError(
+				"Error upgrading VM",
+				fmt.Sprintf("Could not upgrade VM %s to pricing_id %d: %s", state.ServiceID.ValueString(), plan.PricingID.ValueInt64(), err),
+			)
+			return
+		}
 	}
 
 	oldPower := state.PowerState.ValueString()
