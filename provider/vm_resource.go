@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -45,6 +46,7 @@ type vmResourceModel struct {
 	PricingID         types.Int64  `tfsdk:"pricing_id"`
 	SSHKey            types.String `tfsdk:"ssh_key"`
 	AutoCancel        types.Bool   `tfsdk:"auto_cancel"`
+	PowerState        types.String `tfsdk:"power_state"`
 	IP                types.String `tfsdk:"ip"`
 	ServiceID         types.String `tfsdk:"service_id"`
 	OSUser            types.String `tfsdk:"os_user"`
@@ -96,6 +98,12 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				Computed:    true,
 				Description: "If true (default), schedules an end-of-term cancellation so the VPS does not auto-renew.",
 				Default:     booldefault.StaticBool(true),
+			},
+			"power_state": resourceschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The desired power state: running or stopped. Defaults to running. Changing this triggers a start/stop action without replacing the VM.",
+				Default:     stringdefault.StaticString("running"),
 			},
 			"ip": resourceschema.StringAttribute{
 				Computed:    true,
@@ -337,11 +345,47 @@ func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *vmResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError(
-		"Update not supported",
-		"SHC VMs cannot be updated in place. To change hostname, package_id, or pricing_id, recreate the resource. SSH key and auto_cancel changes are not supported via update.",
-	)
+func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan, state vmResourceModel
+
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	oldPower := state.PowerState.ValueString()
+	newPower := plan.PowerState.ValueString()
+
+	if newPower != oldPower {
+		switch newPower {
+		case "stopped":
+			if err := r.client.SetPowerState(ctx, state.ServiceID.ValueString(), "stop"); err != nil {
+				resp.Diagnostics.AddError("Error stopping VM", err.Error())
+				return
+			}
+		case "running":
+			if err := r.client.SetPowerState(ctx, state.ServiceID.ValueString(), "start"); err != nil {
+				resp.Diagnostics.AddError("Error starting VM", err.Error())
+				return
+			}
+		}
+	}
+
+	plan.ServiceID = state.ServiceID
+	plan.IP = state.IP
+	plan.OSUser = state.OSUser
+	plan.Status = state.Status
+	plan.ProvisioningState = state.ProvisioningState
+
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *vmResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

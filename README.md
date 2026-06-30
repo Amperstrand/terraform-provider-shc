@@ -107,6 +107,7 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | `pricing_id`  | number | yes      | The SHC pricing ID (245=Standard, 249=Professional, 253=Business). Changing this forces replacement. |
 | `ssh_key`     | string | no       | SSH public key to apply after provisioning. |
 | `auto_cancel` | bool   | no       | If `true` (default), schedules end-of-term cancellation so the VPS does not auto-renew. |
+| `power_state` | string | no       | The desired power state: `running` (default) or `stopped`. Changing this triggers a start/stop action without replacing the VM. |
 
 | Attribute            | Type   | Computed | Description |
 |----------------------|--------|----------|-------------|
@@ -143,6 +144,42 @@ Manages a backup of an SHC VPS instance.
 |-------------|--------|----------|-------------|
 | `backup_id` | string | yes      | The ID of the created backup. |
 | `status`    | string | yes      | The status of the backup. |
+
+### shc_firewall_rule
+
+Manages a firewall rule on an SHC VPS instance. Rules are identified by their position in the chain.
+
+| Argument     | Type   | Required | Description |
+|--------------|--------|----------|-------------|
+| `service_id` | string | yes      | The SHC service ID of the VPS. Changing this forces replacement. |
+| `action`     | string | no       | The firewall action: `accept` (default), `drop`, or `reject`. |
+| `protocol`   | string | no       | The protocol: `tcp` (default), `udp`, or `icmp`. |
+| `port`       | string | no       | The destination port (e.g. `22`, `80,443`). |
+| `source`     | string | no       | The source CIDR. Defaults to `0.0.0.0/0`. |
+| `direction`  | string | no       | The direction: `in` (default) or `out`. |
+| `name`       | string | no       | A label or comment for the rule. |
+
+| Attribute  | Type   | Computed | Description |
+|------------|--------|----------|-------------|
+| `position` | number | yes      | The position of the rule in the chain. |
+
+Import with `terraform import shc_firewall_rule.example "service_id:position"`.
+
+### shc_rdns
+
+Manages reverse DNS (PTR record) for an IP address on an SHC VPS instance.
+
+| Argument     | Type   | Required | Description |
+|--------------|--------|----------|-------------|
+| `service_id` | string | yes      | The SHC service ID of the VPS. Changing this forces replacement. |
+| `ip`         | string | yes      | The IP address to set reverse DNS for. Changing this forces replacement. |
+| `hostname`   | string | yes      | The FQDN to set as the PTR record. |
+
+| Attribute | Type   | Computed | Description |
+|-----------|--------|----------|-------------|
+| `job_id`  | string | yes      | The async job ID for the rDNS operation. |
+
+Import with `terraform import shc_rdns.example "service_id:ip"`.
 
 ## Data Sources
 

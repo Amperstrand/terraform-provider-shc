@@ -83,6 +83,8 @@ func (p *SHCProvider) Resources(_ context.Context) []func() resource.Resource {
 		NewVMResource,
 		NewSnapshotResource,
 		NewBackupResource,
+		NewFirewallRuleResource,
+		NewRDNSResource,
 	}
 }
 

@@ -27,6 +27,14 @@ func (f flexibleString) String() string {
 	return string(f)
 }
 
+func (f flexibleString) Int64() int64 {
+	var n int64
+	if _, err := fmt.Sscanf(f.String(), "%d", &n); err == nil {
+		return n
+	}
+	return 0
+}
+
 func (f flexibleString) GoString() string {
 	return fmt.Sprintf("flexibleString(%q)", string(f))
 }
@@ -124,4 +132,27 @@ type confirmationResponse struct {
 
 func (c confirmationResponse) GetConfirmationID() string {
 	return c.Confirmation.StructuredContent.ConfirmationID
+}
+
+type FirewallRuleResponse struct {
+	Position flexibleString `json:"position"`
+	Action   string         `json:"action"`
+	Protocol string         `json:"protocol"`
+	Port     string         `json:"port"`
+	Source   string         `json:"source"`
+	Direction string        `json:"direction"`
+	Name     string         `json:"name"`
+}
+
+type FirewallResponse struct {
+	Rules []FirewallRuleResponse `json:"rules"`
+}
+
+type RDNSResponse struct {
+	JobID flexibleString `json:"job_id"`
+}
+
+type RDNSRecord struct {
+	IP       string `json:"ip"`
+	Hostname string `json:"hostname"`
 }
