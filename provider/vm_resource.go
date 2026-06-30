@@ -1,9 +1,12 @@
 package provider
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os/exec"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -48,6 +51,10 @@ type vmResourceModel struct {
 	SSHKey            types.String `tfsdk:"ssh_key"`
 	AutoCancel        types.Bool   `tfsdk:"auto_cancel"`
 	PowerState        types.String `tfsdk:"power_state"`
+	Nodns             types.Bool   `tfsdk:"nodns"`
+	NodnsZone         types.String `tfsdk:"nodns_zone"`
+	Fqdn              types.String `tfsdk:"fqdn"`
+	NodnsNsec         types.String `tfsdk:"nodns_nsec"`
 	IP                types.String `tfsdk:"ip"`
 	ServiceID         types.String `tfsdk:"service_id"`
 	OSUser            types.String `tfsdk:"os_user"`
@@ -116,6 +123,14 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				powerState(),
 			},
 		},
+		"nodns": resourceschema.BoolAttribute{
+			Optional:    true,
+			Description: "If true, auto-publishes a NoDNS record (kind 11111 Nostr event) pointing to this VM's IP. Requires python3 + shc-toolkit on the runner.",
+		},
+		"nodns_zone": resourceschema.StringAttribute{
+			Optional:    true,
+			Description: "NoDNS zone: `nodns.shop` (default) or `dns4sats.xyz`.",
+		},
 			"ip": resourceschema.StringAttribute{
 				Computed:    true,
 				Description: "The primary IP address of the VPS.",
@@ -135,6 +150,15 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			"provisioning_state": resourceschema.StringAttribute{
 				Computed:    true,
 				Description: "The provisioning state of the VPS (e.g. ready, provisioning).",
+			},
+			"fqdn": resourceschema.StringAttribute{
+				Computed:    true,
+				Description: "NoDNS FQDN assigned to the VM (e.g. npub1abc.nodns.shop). Only set when nodns is enabled.",
+			},
+			"nodns_nsec": resourceschema.StringAttribute{
+				Computed:    true,
+				Sensitive:   true,
+				Description: "Nostr secret key (nsec) for the NoDNS record. Store this securely; it is needed to update the record later.",
 			},
 		},
 		Blocks: map[string]resourceschema.Block{
@@ -287,6 +311,24 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 		}
 	}
 
+	if plan.Nodns.ValueBool() {
+		ip := vm.GetIP()
+		zone := plan.NodnsZone.ValueString()
+		if zone == "" {
+			zone = "nodns.shop"
+		}
+		fqdn, nsec, err := publishNoDNS(ctx, ip, zone)
+		if err != nil {
+			resp.Diagnostics.AddWarning(
+				"NoDNS publish failed",
+				fmt.Sprintf("Could not publish NoDNS record for VM %s: %s. The VM is running; publish the record manually with 'shc nodns --ip %s'.", serviceID, err, ip),
+			)
+		} else {
+			plan.Fqdn = types.StringValue(fqdn)
+			plan.NodnsNsec = types.StringValue(nsec)
+		}
+	}
+
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 }
@@ -342,6 +384,36 @@ func (r *vmResource) waitForProvisioning(ctx context.Context, serviceID string, 
 	return nil, diags
 }
 
+// publishNoDNS shells out to the Python shc-toolkit to publish a kind 11111
+// Nostr DNS event. Requires python3 + shc-toolkit (+ nostr-sdk) on the runner.
+func publishNoDNS(ctx context.Context, ip, zone string) (fqdn, nsec string, err error) {
+	script := fmt.Sprintf(`import json, sys
+from shc_toolkit.nodns import provision_dns_for_vm
+result = provision_dns_for_vm(ip=%q, zone=%q, wait_seconds=5)
+json.dump({"fqdn": result.get("fqdn", ""), "nsec": result.get("keypair", {}).get("nsec", "")}, sys.stdout)
+`, ip, zone)
+
+	cmd := exec.CommandContext(ctx, "python3", "-c", script)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		return "", "", fmt.Errorf("python3 shc-toolkit call failed: %w: %s", err, stderr.String())
+	}
+
+	var result struct {
+		Fqdn string `json:"fqdn"`
+		Nsec string `json:"nsec"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		return "", "", fmt.Errorf("failed to parse NoDNS JSON output: %w", err)
+	}
+	if result.Fqdn == "" {
+		return "", "", fmt.Errorf("NoDNS publish returned empty FQDN")
+	}
+	return result.Fqdn, result.Nsec, nil
+}
+
 func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state vmResourceModel
 	diags := req.State.Get(ctx, &state)
@@ -372,6 +444,9 @@ func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 	state.ProvisioningState = types.StringValue(vm.ProvisioningState)
 	state.Hostname = types.StringValue(vm.Hostname)
 	state.OSUser = types.StringValue(vm.OSUser)
+
+	// fqdn and nodns_nsec are stored in state from creation; they are not
+	// re-fetched from the SHC API (which has no knowledge of NoDNS records).
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -443,6 +518,8 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 	plan.OSUser = state.OSUser
 	plan.Status = state.Status
 	plan.ProvisioningState = state.ProvisioningState
+	plan.Fqdn = state.Fqdn
+	plan.NodnsNsec = state.NodnsNsec
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

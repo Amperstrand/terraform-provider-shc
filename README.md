@@ -10,6 +10,7 @@ Terraform provider for Sovereign Hybrid Compute (SHC) VPS. Manage SHC virtual ma
 - SSH key injection: apply a public key to a VPS after provisioning
 - Confirmation flow handling: automatically resolves SHC order confirmation requests
 - Auto-cancel: optionally schedule end-of-term cancellation so VPS do not auto-renew
+- NoDNS: optionally auto-publish a `.nodns.shop` or `.dns4sats.xyz` domain pointing to the VM via Nostr
 
 ## Requirements
 
@@ -109,6 +110,8 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | `ssh_key`     | string | no       | SSH public key to apply after provisioning. |
 | `auto_cancel` | bool   | no       | If `true` (default), schedules end-of-term cancellation so the VPS does not auto-renew. |
 | `power_state` | string | no       | The desired power state: `running` (default) or `stopped`. Changing this triggers a start/stop action without replacing the VM. |
+| `nodns`       | bool   | no       | If `true`, auto-publishes a NoDNS record (kind 11111 Nostr event) pointing to the VM's IP after provisioning. Requires `python3` + `shc-toolkit` on the runner. |
+| `nodns_zone`  | string | no       | NoDNS zone: `nodns.shop` (default) or `dns4sats.xyz`. Only used when `nodns = true`. |
 
 | Attribute            | Type   | Computed | Description |
 |----------------------|--------|----------|-------------|
@@ -117,6 +120,8 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | `os_user`            | string | yes      | The default OS user for SSH login (typically `debian`). |
 | `status`             | string | yes      | The current service status. |
 | `provisioning_state` | string | yes      | The provisioning state (`ready`, `provisioning`, etc.). |
+| `fqdn`               | string | yes      | NoDNS FQDN assigned to the VM (e.g. `npub1abc.nodns.shop`). Only set when `nodns = true`. |
+| `nodns_nsec`         | string | yes      | Nostr secret key (nsec) for the NoDNS record. **Sensitive.** Store securely; needed to update the record later. |
 
 ### Size abstraction
 
@@ -149,6 +154,36 @@ resource "shc_vm" "web" {
   hostname   = "web-server"
   package_id = 82  # was 81
   pricing_id = 249 # was 245
+}
+```
+
+### NoDNS hostname
+
+Set `nodns = true` to automatically get a `.nodns.shop` (or `.dns4sats.xyz`) domain
+pointing to the VM's IP. The provider publishes a kind 11111 Nostr event via the
+Python `shc-toolkit`. The resulting FQDN and nsec secret key are exposed as outputs.
+
+Requires `python3` and `shc-toolkit` (with `nostr-sdk`) on the Terraform runner:
+
+```sh
+pip install shc-toolkit[nostr]
+```
+
+```hcl
+resource "shc_vm" "web" {
+  hostname  = "web-server"
+  size      = "standard"
+  nodns     = true
+  nodns_zone = "dns4sats.xyz"
+}
+
+output "vm_fqdn" {
+  value = shc_vm.web.fqdn
+}
+
+output "vm_nsec" {
+  value     = shc_vm.web.nodns_nsec
+  sensitive = true
 }
 ```
 
