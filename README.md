@@ -2,6 +2,11 @@
 
 Terraform provider for Sovereign Hybrid Compute (SHC) VPS. Manage SHC virtual machines, snapshots, backups, firewall rules, and reverse DNS as Terraform infrastructure-as-code.
 
+## Related Projects
+
+- [shc-toolkit](https://github.com/Amperstrand/shc-toolkit) — Python client, CLI, and provisioning toolkit for SHC
+- [shc-pulumi](https://github.com/Amperstrand/shc-pulumi) — Pulumi provider for SHC
+
 ## Quick Start
 
 The simplest possible configuration -- one VM on the standard plan:
@@ -26,7 +31,7 @@ variable "shc_api_key" {
 
 resource "shc_vm" "web" {
   hostname = "web"
-  size     = "standard"
+  size     = "nvme-2c-8gb"
 }
 
 output "vm_ip" {
@@ -43,7 +48,7 @@ terraform apply
 ## Features
 
 - VM lifecycle: create, read, update (in-place upgrade), and delete VPS instances
-- Size abstraction: pick a plan by name (`size = "standard"`) instead of numeric IDs
+- Size abstraction: pick a plan by spec-encoding name (`size = "nvme-2c-8gb"`) instead of numeric IDs
 - In-place upgrade: change `size` or `package_id`/`pricing_id` to upgrade without recreate
 - Power management: start/stop a VM with `power_state = "stopped"`
 - NoDNS: auto-publish a `.nodns.shop` or `.dns4sats.xyz` hostname via Nostr
@@ -116,7 +121,7 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | Argument      | Type   | Required | Description |
 |---------------|--------|----------|-------------|
 | `hostname`    | string | yes      | The hostname for the VPS. Changing this forces replacement. |
-| `size`        | string | no       | Named size: `starter`, `standard`, `professional`, `business`, `enterprise` (NVMe), or `dev-starter`, `dev-standard`, `dev-professional`, `dev-business`, `dev-enterprise` (Dev VPS). Takes precedence over `package_id`/`pricing_id`. Changing this triggers an in-place upgrade. |
+| `size`        | string | no       | Spec-encoding size name: `{line}-{cpu}c-{ram}gb` (e.g. `nvme-2c-8gb`, `hdd-1c-4gb`, `ssd-4c-16gb`, `dev-8c-32gb`). Takes precedence over `package_id`/`pricing_id`. Changing this triggers an in-place upgrade. |
 | `package_id`  | number | no       | The SHC package ID. Required if `size` is not set. Changing this triggers an in-place upgrade. |
 | `pricing_id`  | number | no       | The SHC pricing ID. Required if `size` is not set. Changing this triggers an in-place upgrade. |
 | `ssh_key`     | string | no       | SSH public key to apply after provisioning. |
@@ -142,12 +147,11 @@ Instead of numeric `package_id` and `pricing_id`, use `size` for a human-readabl
 ```hcl
 resource "shc_vm" "web" {
   hostname = "web"
-  size     = "standard"
+  size     = "nvme-2c-8gb"
 }
 ```
 
-Available sizes: `starter`, `standard`, `professional`, `business`, `enterprise` (NVMe);
-`dev-starter`, `dev-standard`, `dev-professional`, `dev-business`, `dev-enterprise` (Dev VPS).
+Available sizes: `nvme-1c-4gb`, `nvme-2c-8gb`, `nvme-4c-16gb`, `hdd-2c-4gb`, `ssd-4c-16gb`, `dev-8c-32gb` (spec-encoding).
 
 #### In-place upgrade
 
@@ -158,7 +162,7 @@ Only upgrades (more CPU/RAM/disk) are supported. Disk-reducing changes are rejec
 ```hcl
 resource "shc_vm" "web" {
   hostname = "web-server"
-  size     = "professional"  # was "standard"
+  size     = "nvme-4c-16gb"  # was "nvme-2c-8gb"
 }
 ```
 
@@ -175,7 +179,7 @@ pip install shc-toolkit[nostr]
 ```hcl
 resource "shc_vm" "web" {
   hostname   = "web-server"
-  size       = "standard"
+  size       = "nvme-2c-8gb"
   nodns      = true
   nodns_zone = "dns4sats.xyz"
 }
@@ -197,7 +201,7 @@ Control whether a VM is running or stopped:
 ```hcl
 resource "shc_vm" "db" {
   hostname    = "database"
-  size        = "standard"
+  size        = "nvme-2c-8gb"
   power_state = "stopped"
 }
 ```
@@ -351,7 +355,7 @@ data "shc_vm" "existing" {
 
 ## Known Limitations
 
-- **Snapshots & backups not available on Dev VPS plans**: Dev VPS plans (pkg 80-84) lack the storage infrastructure for snapshots and backups. The `shc_snapshot` and `shc_backup` resources will fail with `upstream_failure` on these plans. Use NVMe/SSD/HDD VPS plans (pkg 23+) for snapshot and backup support. All other API features (firewall, rDNS, ISO, console, metrics) work on both plan types.
+- **Snapshot/backup limit**: All VPS plans (including Dev VPS) support 1 snapshot and 1 backup concurrently. Verified working on Dev VPS via front-door E2E (2026-07-01).
 
 ## Development
 
@@ -370,4 +374,6 @@ MIT
 
 ---
 
-**Get SHC VPS**: [Sovereign Hybrid Compute](https://blesta.sovereignhybridcompute.com/order/forms/a/lecture-mushroom-lunar) -- bitcoin-native VPS hosting
+**Get SHC VPS**: [Sovereign Hybrid Compute](https://blesta.sovereignhybridcompute.com/order/forms/a/lecture-mushroom-lunar) — bitcoin-native VPS hosting
+
+> **Disclosure**: The SHC link above is an affiliate link. If you sign up through it, we may receive credit toward our SHC account at no extra cost to you.
