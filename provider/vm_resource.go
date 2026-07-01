@@ -101,7 +101,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 		},
 		"size": resourceschema.StringAttribute{
 			Optional:    true,
-			Description: "Named size: starter, standard, professional, business, enterprise, dev-starter, dev-standard, dev-professional, dev-business, dev-enterprise. Takes precedence over package_id/pricing_id when both are set.",
+			Description: "Spec-encoding size name: {line}-{cpu}c-{ram}gb (e.g. nvme-2c-8gb, hdd-1c-4gb, ssd-4c-16gb, dev-8c-32gb). Takes precedence over package_id/pricing_id when both are set.",
 		},
 			"ssh_key": resourceschema.StringAttribute{
 				Optional:    true,
