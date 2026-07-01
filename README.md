@@ -1,16 +1,61 @@
 # Terraform Provider for SHC
 
-Terraform provider for Sovereign Hybrid Compute (SHC) VPS. Manage SHC virtual machines, snapshots, and backups as Terraform infrastructure-as-code.
+Terraform provider for Sovereign Hybrid Compute (SHC) VPS. Manage SHC virtual machines, snapshots, backups, firewall rules, and reverse DNS as Terraform infrastructure-as-code.
+
+## Quick Start
+
+The simplest possible configuration -- one VM on the standard plan:
+
+```hcl
+terraform {
+  required_providers {
+    shc = {
+      source = "sovereignhybridcompute/shc"
+    }
+  }
+}
+
+provider "shc" {
+  api_key = var.shc_api_key
+}
+
+variable "shc_api_key" {
+  type      = string
+  sensitive = true
+}
+
+resource "shc_vm" "web" {
+  hostname = "web"
+  size     = "standard"
+}
+
+output "vm_ip" {
+  value = shc_vm.web.ip
+}
+```
+
+```sh
+export SHC_API_KEY="shc_live_..."
+terraform init
+terraform apply
+```
 
 ## Features
 
-- VM lifecycle: create, read, update (via replacement), and delete VPS instances
-- Snapshot management: create, read, and delete VPS snapshots
-- Backup management: create, read, and delete VPS backups
+- VM lifecycle: create, read, update (in-place upgrade), and delete VPS instances
+- Size abstraction: pick a plan by name (`size = "standard"`) instead of numeric IDs
+- In-place upgrade: change `size` or `package_id`/`pricing_id` to upgrade without recreate
+- Power management: start/stop a VM with `power_state = "stopped"`
+- NoDNS: auto-publish a `.nodns.shop` or `.dns4sats.xyz` hostname via Nostr
+- Firewall: manage per-VM firewall rules (`shc_firewall_rule`)
+- Reverse DNS: manage PTR records (`shc_rdns`)
+- Snapshots and backups: create, read, restore, and delete
 - SSH key injection: apply a public key to a VPS after provisioning
 - Confirmation flow handling: automatically resolves SHC order confirmation requests
 - Auto-cancel: optionally schedule end-of-term cancellation so VPS do not auto-renew
-- NoDNS: optionally auto-publish a `.nodns.shop` or `.dns4sats.xyz` domain pointing to the VM via Nostr
+- Credit safety: pre-checks account credit before ordering to prevent surprise billing
+- Data sources: browse the catalog, templates, and machine types
+- Import: bring existing VMs under Terraform management
 
 ## Requirements
 
@@ -51,42 +96,9 @@ The provider authenticates against the SHC API using a Bearer token (API key). P
    export SHC_API_KEY="your-api-key"
    ```
 
-2. Or pass it explicitly in the provider block (see the usage example below).
+2. Or pass it explicitly in the provider block (see the Quick Start example).
 
 The API key is treated as sensitive and will not appear in plan or state output.
-
-## Usage
-
-```hcl
-terraform {
-  required_providers {
-    shc = {
-      source = "sovereignhybridcompute/shc"
-    }
-  }
-}
-
-variable "shc_api_key" {
-  type      = string
-  sensitive = true
-}
-
-provider "shc" {
-  api_key = var.shc_api_key
-}
-
-resource "shc_vm" "test" {
-  hostname   = "tf-test"
-  package_id = 81
-  pricing_id = 245
-}
-
-output "vm_ip" {
-  value = shc_vm.test.ip
-}
-```
-
-See [`examples/main.tf`](examples/main.tf) for a more complete example including snapshots.
 
 ## Provider Configuration
 
@@ -104,13 +116,13 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | Argument      | Type   | Required | Description |
 |---------------|--------|----------|-------------|
 | `hostname`    | string | yes      | The hostname for the VPS. Changing this forces replacement. |
-| `size`        | string | no       | Named size: `starter`, `standard`, `professional`, `business`, `enterprise` (NVMe), or `dev-starter`, `dev-standard`, `dev-professional`, `dev-business`, `dev-enterprise` (Dev VPS). Takes precedence over `package_id`/`pricing_id`. |
-| `package_id`  | number | no       | The SHC package ID (81=Standard, 82=Professional, 83=Business). Required if `size` is not set. Changing this triggers an in-place upgrade. |
-| `pricing_id`  | number | no       | The SHC pricing ID (245=Standard, 249=Professional, 253=Business). Required if `size` is not set. Changing this triggers an in-place upgrade. |
+| `size`        | string | no       | Named size: `starter`, `standard`, `professional`, `business`, `enterprise` (NVMe), or `dev-starter`, `dev-standard`, `dev-professional`, `dev-business`, `dev-enterprise` (Dev VPS). Takes precedence over `package_id`/`pricing_id`. Changing this triggers an in-place upgrade. |
+| `package_id`  | number | no       | The SHC package ID. Required if `size` is not set. Changing this triggers an in-place upgrade. |
+| `pricing_id`  | number | no       | The SHC pricing ID. Required if `size` is not set. Changing this triggers an in-place upgrade. |
 | `ssh_key`     | string | no       | SSH public key to apply after provisioning. |
 | `auto_cancel` | bool   | no       | If `true` (default), schedules end-of-term cancellation so the VPS does not auto-renew. |
-| `power_state` | string | no       | The desired power state: `running` (default) or `stopped`. Changing this triggers a start/stop action without replacing the VM. |
-| `nodns`       | bool   | no       | If `true`, auto-publishes a NoDNS record (kind 11111 Nostr event) pointing to the VM's IP after provisioning. Requires `python3` + `shc-toolkit` on the runner. |
+| `power_state` | string | no       | Desired power state: `running` (default) or `stopped`. Changing this triggers a start/stop without replacing the VM. |
+| `nodns`       | bool   | no       | If `true`, auto-publishes a NoDNS record pointing to the VM's IP after provisioning. Requires `python3` + `shc-toolkit` on the runner. |
 | `nodns_zone`  | string | no       | NoDNS zone: `nodns.shop` (default) or `dns4sats.xyz`. Only used when `nodns = true`. |
 
 | Attribute            | Type   | Computed | Description |
@@ -123,9 +135,9 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | `fqdn`               | string | yes      | NoDNS FQDN assigned to the VM (e.g. `npub1abc.nodns.shop`). Only set when `nodns = true`. |
 | `nodns_nsec`         | string | yes      | Nostr secret key (nsec) for the NoDNS record. **Sensitive.** Store securely; needed to update the record later. |
 
-### Size abstraction
+#### Size abstraction (recommended)
 
-Instead of `package_id` and `pricing_id`, use `size` for a human-readable plan name:
+Instead of numeric `package_id` and `pricing_id`, use `size` for a human-readable plan name:
 
 ```hcl
 resource "shc_vm" "web" {
@@ -134,34 +146,25 @@ resource "shc_vm" "web" {
 }
 ```
 
-Available sizes: starter, standard, professional, business, enterprise (NVMe);
-dev-starter, dev-standard, dev-professional, dev-business, dev-enterprise (Dev VPS).
+Available sizes: `starter`, `standard`, `professional`, `business`, `enterprise` (NVMe);
+`dev-starter`, `dev-standard`, `dev-professional`, `dev-business`, `dev-enterprise` (Dev VPS).
 
-Changing `size` on an existing VM triggers an in-place upgrade.
+#### In-place upgrade
 
-### Upgrading a VM
+Changing `size` (or `package_id`/`pricing_id`) on an existing VM triggers an in-place upgrade instead of destroy/recreate. The upgrade is queued -- it creates a prorated invoice and the VM is resized after payment.
 
-Changing `package_id` and `pricing_id` on an existing VM triggers an in-place upgrade
-instead of destroy/recreate. The upgrade is queued — it creates a prorated invoice and
-the VM is resized after payment.
-
-Only upgrades (more CPU/RAM/disk) are supported. Disk-reducing changes are rejected by
-the API with a 422 error.
+Only upgrades (more CPU/RAM/disk) are supported. Disk-reducing changes are rejected by the API with a 422 error.
 
 ```hcl
-# Upgrade from Standard to Professional
 resource "shc_vm" "web" {
-  hostname   = "web-server"
-  package_id = 82  # was 81
-  pricing_id = 249 # was 245
+  hostname = "web-server"
+  size     = "professional"  # was "standard"
 }
 ```
 
-### NoDNS hostname
+#### NoDNS hostname
 
-Set `nodns = true` to automatically get a `.nodns.shop` (or `.dns4sats.xyz`) domain
-pointing to the VM's IP. The provider publishes a kind 11111 Nostr event via the
-Python `shc-toolkit`. The resulting FQDN and nsec secret key are exposed as outputs.
+Set `nodns = true` to automatically get a `.nodns.shop` (or `.dns4sats.xyz`) domain pointing to the VM's IP. The provider publishes a kind 11111 Nostr event via the Python `shc-toolkit`. The resulting FQDN and nsec secret key are exposed as outputs.
 
 Requires `python3` and `shc-toolkit` (with `nostr-sdk`) on the Terraform runner:
 
@@ -171,9 +174,9 @@ pip install shc-toolkit[nostr]
 
 ```hcl
 resource "shc_vm" "web" {
-  hostname  = "web-server"
-  size      = "standard"
-  nodns     = true
+  hostname   = "web-server"
+  size       = "standard"
+  nodns      = true
   nodns_zone = "dns4sats.xyz"
 }
 
@@ -185,6 +188,34 @@ output "vm_nsec" {
   value     = shc_vm.web.nodns_nsec
   sensitive = true
 }
+```
+
+#### Power management
+
+Control whether a VM is running or stopped:
+
+```hcl
+resource "shc_vm" "db" {
+  hostname    = "database"
+  size        = "standard"
+  power_state = "stopped"
+}
+```
+
+Changing `power_state` triggers a start/stop action without replacing the VM.
+
+#### Credit safety
+
+Before submitting an order, the provider checks that your account has at least $0.50 of available credit (the cheapest daily plan). This prevents surprise billing from an order that would create an unpaid invoice. If credit is insufficient, `terraform apply` fails fast with a link to add credit.
+
+The check fails open: if the billing endpoint is temporarily unreachable, ordering proceeds so that transient outages do not block provisioning.
+
+#### Import
+
+Bring an existing VM under Terraform management by its service ID:
+
+```sh
+terraform import shc_vm.web 123
 ```
 
 ### shc_snapshot
@@ -233,6 +264,17 @@ Manages a firewall rule on an SHC VPS instance. Rules are identified by their po
 |------------|--------|----------|-------------|
 | `position` | number | yes      | The position of the rule in the chain. |
 
+```hcl
+resource "shc_firewall_rule" "allow_https" {
+  service_id = shc_vm.web.service_id
+  action     = "accept"
+  protocol   = "tcp"
+  port       = "443"
+  source     = "0.0.0.0/0"
+  name       = "allow-https"
+}
+```
+
 Import with `terraform import shc_firewall_rule.example "service_id:position"`.
 
 ### shc_rdns
@@ -249,11 +291,63 @@ Manages reverse DNS (PTR record) for an IP address on an SHC VPS instance.
 |-----------|--------|----------|-------------|
 | `job_id`  | string | yes      | The async job ID for the rDNS operation. |
 
+```hcl
+resource "shc_rdns" "mail" {
+  service_id = shc_vm.web.service_id
+  ip         = shc_vm.web.ip
+  hostname   = "mail.example.com"
+}
+```
+
 Import with `terraform import shc_rdns.example "service_id:ip"`.
 
 ## Data Sources
 
-- `shc_vm` - Reads an existing VPS by service ID. Requires `service_id` and exports `hostname`, `ip`, `os_user`, `status`, and `provisioning_state`.
+### shc_catalog
+
+Fetches the SHC ordering catalog, listing available VPS packages and their resource specifications (CPU, memory, disk).
+
+```hcl
+data "shc_catalog" "current" {}
+
+output "packages" {
+  value = data.shc_catalog.current.packages
+}
+```
+
+### shc_templates
+
+Fetches the list of available OS templates for SHC VPS instances (name, family, arch, status).
+
+```hcl
+data "shc_templates" "available" {}
+
+output "template_names" {
+  value = data.shc_templates.available.templates[*].name
+}
+```
+
+### shc_machine_types
+
+Fetches the SHC catalog with resource specs and pricing (daily, weekly, monthly) per machine type.
+
+```hcl
+data "shc_machine_types" "all" {}
+
+output "machine_types" {
+  value = data.shc_machine_types.all.machine_types
+}
+```
+
+### shc_vm (data source)
+
+Reads an existing VPS by service ID. Requires `service_id` and exports `hostname`, `ip`, `os_user`, `status`, and `provisioning_state`.
+
+```hcl
+data "shc_vm" "existing" {
+  service_id = "123"
+}
+```
 
 ## Known Limitations
 
@@ -276,4 +370,4 @@ MIT
 
 ---
 
-**Get SHC VPS**: [Sovereign Hybrid Compute](https://blesta.sovereignhybridcompute.com/order/forms/a/lecture-mushroom-lunar) — bitcoin-native VPS hosting
+**Get SHC VPS**: [Sovereign Hybrid Compute](https://blesta.sovereignhybridcompute.com/order/forms/a/lecture-mushroom-lunar) -- bitcoin-native VPS hosting

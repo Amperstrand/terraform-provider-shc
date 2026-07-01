@@ -269,6 +269,11 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	ctx, cancel := withTimeout(ctx, plan.Timeouts, "create", defaultVMCreateTimeout)
 	defer cancel()
 
+	if err := r.client.CheckCredit(ctx, 0.50); err != nil {
+		resp.Diagnostics.AddError("Insufficient credit", err.Error())
+		return
+	}
+
 	orderResp, err := r.client.SubmitOrder(ctx, plan.Hostname.ValueString(), plan.PackageID.ValueInt64(), plan.PricingID.ValueInt64())
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating VM", fmt.Sprintf("Could not submit order: %s", err))

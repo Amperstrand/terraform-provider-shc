@@ -295,6 +295,63 @@ func TestGetBalance(t *testing.T) {
 	}
 }
 
+func TestCheckCredit_Insufficient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": map[string]interface{}{
+				"balances": []map[string]string{
+					{"currency": "USD", "available_credit": "0.10"},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewSHCClient("test", server.URL)
+	err := client.CheckCredit(context.Background(), 0.50)
+	if err == nil {
+		t.Fatal("expected error for insufficient credit, got nil")
+	}
+	if !strings.Contains(err.Error(), "insufficient credit") {
+		t.Errorf("expected 'insufficient credit' in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "0.10") {
+		t.Errorf("expected available amount in error, got: %v", err)
+	}
+}
+
+func TestCheckCredit_Sufficient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": map[string]interface{}{
+				"balances": []map[string]string{
+					{"currency": "USD", "available_credit": "5.00"},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewSHCClient("test", server.URL)
+	err := client.CheckCredit(context.Background(), 0.50)
+	if err != nil {
+		t.Fatalf("expected nil for sufficient credit, got: %v", err)
+	}
+}
+
+func TestCheckCredit_FailsOpenOnError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewSHCClient("test", server.URL)
+	err := client.CheckCredit(context.Background(), 0.50)
+	if err != nil {
+		t.Fatalf("expected nil (fail open) when balance endpoint errors, got: %v", err)
+	}
+}
+
 func TestGetCatalog(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/ordering/catalog" {

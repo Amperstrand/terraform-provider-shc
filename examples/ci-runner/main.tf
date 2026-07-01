@@ -18,18 +18,6 @@ variable "hostname" {
   default     = "ci-runner"
 }
 
-variable "package_id" {
-  type        = number
-  description = "SHC package ID (26 = NVMe Standard, 2C/8GB/16GB)"
-  default     = 26
-}
-
-variable "pricing_id" {
-  type        = number
-  description = "SHC pricing ID for the package"
-  default     = 55
-}
-
 variable "ssh_public_key" {
   type        = string
   description = "Path to SSH public key file"
@@ -54,11 +42,12 @@ provider "shc" {
 
 resource "shc_vm" "ci_runner" {
   hostname    = var.hostname
-  package_id  = var.package_id
-  pricing_id  = var.pricing_id
+  size        = "standard"
   ssh_key     = file(var.ssh_public_key)
   auto_cancel = true
   power_state = var.power_state
+  nodns       = true
+  nodns_zone  = "dns4sats.xyz"
 }
 
 resource "shc_firewall_rule" "allow_ssh" {
@@ -73,6 +62,11 @@ resource "shc_firewall_rule" "allow_ssh" {
 output "vm_ip" {
   description = "Public IP address of the CI runner"
   value       = shc_vm.ci_runner.ip
+}
+
+output "vm_fqdn" {
+  description = "NoDNS FQDN pointing to the CI runner"
+  value       = shc_vm.ci_runner.fqdn
 }
 
 output "service_id" {

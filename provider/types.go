@@ -117,6 +117,15 @@ type BalanceResponse struct {
 	Balance  flexibleString `json:"balance"`
 	Credit   flexibleString `json:"credit"`
 	Currency string         `json:"currency"`
+	// Balances is the array form returned by the API, e.g.:
+	//   {"balances": [{"currency": "USD", "available_credit": "1.47"}]}
+	Balances []BalanceEntry `json:"balances"`
+}
+
+// BalanceEntry represents a single currency balance entry.
+type BalanceEntry struct {
+	Currency        string `json:"currency"`
+	AvailableCredit string `json:"available_credit"`
 }
 
 type confirmationResponse struct {

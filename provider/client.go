@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -537,6 +538,27 @@ func (c *SHCClient) GetBalance(ctx context.Context) (*BalanceResponse, error) {
 	}
 
 	return &bal, nil
+}
+
+// CheckCredit verifies that the account has at least minRequired USD of
+// available credit before placing an order. It fails open: if the balance
+// endpoint is unreachable or the response cannot be parsed, it returns nil so
+// that ordering is not blocked by a transient billing-API outage.
+func (c *SHCClient) CheckCredit(ctx context.Context, minRequired float64) error {
+	bal, err := c.GetBalance(ctx)
+	if err != nil {
+		return nil
+	}
+	var available float64
+	for _, b := range bal.Balances {
+		if b.Currency == "USD" {
+			available, _ = strconv.ParseFloat(b.AvailableCredit, 64)
+		}
+	}
+	if available < minRequired {
+		return fmt.Errorf("insufficient credit: need $%.2f, have $%.2f. Add credit at https://blesta.sovereignhybridcompute.com/client/", minRequired, available)
+	}
+	return nil
 }
 
 type CatalogPricingResponse struct {
