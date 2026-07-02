@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 const defaultBaseURL = "https://blesta.sovereignhybridcompute.com/user-api/v2"
@@ -169,12 +171,13 @@ func (c *SHCClient) handleConfirmation(ctx context.Context, method, path string,
 	return respBody, nil
 }
 
-func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID, pricingID int64) (*OrderResponse, error) {
+func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID, pricingID int64, configOptions map[string]string) (*OrderResponse, error) {
 	orderReq := OrderRequest{
-		Hostname:    hostname,
-		PackageID:   packageID,
-		PricingID:   pricingID,
-		OrderFormID: 11,
+		Hostname:      hostname,
+		PackageID:     packageID,
+		PricingID:     pricingID,
+		OrderFormID:   11,
+		ConfigOptions: configOptions,
 	}
 
 	body, err := json.Marshal(orderReq)
@@ -207,6 +210,96 @@ func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID,
 	}
 
 	return &orderResp, nil
+}
+
+func (c *SHCClient) ResolveAddons(ctx context.Context, packageID int64, diskGB, ramMB, cpu types.Int64, template types.String) (map[string]string, error) {
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/ordering/catalog", nil, "")
+	if err != nil {
+		return nil, fmt.Errorf("fetching catalog: %w", err)
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("catalog fetch failed (status %d)", statusCode)
+	}
+
+	var catalogResp struct {
+		Data struct {
+			Items []struct {
+				PackageID            int64 `json:"package_id"`
+				AvailableConfigOpts []struct {
+					Options []struct {
+						OptionID int64 `json:"option_id"`
+						Name     string `json:"name"`
+						Values   []struct {
+							Value string `json:"value"`
+						} `json:"values"`
+					} `json:"options"`
+				} `json:"available_config_options"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+
+	unwrapped := unwrapData(respBody)
+	if err := json.Unmarshal(unwrapped, &catalogResp); err != nil {
+		return nil, fmt.Errorf("parsing catalog: %w", err)
+	}
+
+	var pkgOpts map[string]struct {
+		optionID int64
+		values   map[string]bool
+	}
+	for _, pkg := range catalogResp.Data.Items {
+		if pkg.PackageID != packageID {
+			continue
+		}
+		pkgOpts = make(map[string]struct {
+			optionID int64
+			values   map[string]bool
+		})
+		for _, block := range pkg.AvailableConfigOpts {
+			for _, opt := range block.Options {
+				vals := make(map[string]bool)
+				for _, v := range opt.Values {
+					vals[v.Value] = true
+				}
+				pkgOpts[opt.Name] = struct {
+					optionID int64
+					values   map[string]bool
+				}{optionID: opt.OptionID, values: vals}
+			}
+		}
+		break
+	}
+	if pkgOpts == nil {
+		return nil, fmt.Errorf("package_id %d not found in catalog", packageID)
+	}
+
+	result := make(map[string]string)
+	specs := []struct {
+		name     string
+		value    string
+		hasValue bool
+	}{
+		{"disk", strconv.FormatInt(diskGB.ValueInt64(), 10), !diskGB.IsNull()},
+		{"ram", strconv.FormatInt(ramMB.ValueInt64(), 10), !ramMB.IsNull()},
+		{"cpu", strconv.FormatInt(cpu.ValueInt64(), 10), !cpu.IsNull()},
+		{"template", template.ValueString(), !template.IsNull()},
+	}
+
+	for _, spec := range specs {
+		if !spec.hasValue {
+			continue
+		}
+		opt, ok := pkgOpts[spec.name]
+		if !ok {
+			return nil, fmt.Errorf("package %d does not expose a '%s' option", packageID, spec.name)
+		}
+		if !opt.values[spec.value] {
+			return nil, fmt.Errorf("package %d %s=%s not available", packageID, spec.name, spec.value)
+		}
+		result[strconv.FormatInt(opt.optionID, 10)] = spec.value
+	}
+
+	return result, nil
 }
 
 func (c *SHCClient) GetVM(ctx context.Context, serviceID string) (*VMResponse, error) {

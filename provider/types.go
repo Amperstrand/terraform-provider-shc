@@ -40,10 +40,11 @@ func (f flexibleString) GoString() string {
 }
 
 type OrderRequest struct {
-	Hostname    string `json:"hostname"`
-	PackageID   int64  `json:"package_id"`
-	PricingID   int64  `json:"pricing_id"`
-	OrderFormID int64  `json:"order_form_id"`
+	Hostname      string            `json:"hostname"`
+	PackageID     int64             `json:"package_id"`
+	PricingID     int64             `json:"pricing_id"`
+	OrderFormID   int64             `json:"order_form_id"`
+	ConfigOptions map[string]string `json:"config_options,omitempty"`
 }
 
 type OrderResponse struct {

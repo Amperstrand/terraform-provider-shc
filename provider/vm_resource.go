@@ -48,6 +48,10 @@ type vmResourceModel struct {
 	Size              types.String `tfsdk:"size"`
 	PackageID         types.Int64  `tfsdk:"package_id"`
 	PricingID         types.Int64  `tfsdk:"pricing_id"`
+	DiskGB            types.Int64  `tfsdk:"disk_gb"`
+	RamMB             types.Int64  `tfsdk:"ram_mb"`
+	CPU               types.Int64  `tfsdk:"cpu"`
+	Template          types.String `tfsdk:"template"`
 	SSHKey            types.String `tfsdk:"ssh_key"`
 	AutoCancel        types.Bool   `tfsdk:"auto_cancel"`
 	PowerState        types.String `tfsdk:"power_state"`
@@ -102,6 +106,22 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 		"size": resourceschema.StringAttribute{
 			Optional:    true,
 			Description: "Spec-encoding size name: {line}-{cpu}c-{ram}gb (e.g. nvme-2c-8gb, hdd-1c-4gb, ssd-4c-16gb, dev-8c-32gb). Takes precedence over package_id/pricing_id when both are set.",
+		},
+		"disk_gb": resourceschema.Int64Attribute{
+			Optional: true,
+			Description: "Override total disk in GB. Resolved to the package's config option at order time. Must be an available value for the selected plan.",
+		},
+		"ram_mb": resourceschema.Int64Attribute{
+			Optional: true,
+			Description: "Override total RAM in MB. Resolved to the package's config option at order time.",
+		},
+		"cpu": resourceschema.Int64Attribute{
+			Optional: true,
+			Description: "Override total vCPU cores. Resolved to the package's config option at order time.",
+		},
+		"template": resourceschema.StringAttribute{
+			Optional: true,
+			Description: "OS template slug (e.g. debian12-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.",
 		},
 			"ssh_key": resourceschema.StringAttribute{
 				Optional:    true,
@@ -274,7 +294,18 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 		return
 	}
 
-	orderResp, err := r.client.SubmitOrder(ctx, plan.Hostname.ValueString(), plan.PackageID.ValueInt64(), plan.PricingID.ValueInt64())
+	var configOptions map[string]string
+	if !plan.DiskGB.IsNull() || !plan.RamMB.IsNull() || !plan.CPU.IsNull() || !plan.Template.IsNull() {
+		opts, err := r.client.ResolveAddons(ctx, plan.PackageID.ValueInt64(),
+			plan.DiskGB, plan.RamMB, plan.CPU, plan.Template)
+		if err != nil {
+			resp.Diagnostics.AddError("Config option resolution failed", err.Error())
+			return
+		}
+		configOptions = opts
+	}
+
+	orderResp, err := r.client.SubmitOrder(ctx, plan.Hostname.ValueString(), plan.PackageID.ValueInt64(), plan.PricingID.ValueInt64(), configOptions)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating VM", fmt.Sprintf("Could not submit order: %s", err))
 		return

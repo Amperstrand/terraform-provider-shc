@@ -32,7 +32,7 @@ func TestSubmitOrder(t *testing.T) {
 	defer server.Close()
 
 	client := NewSHCClient("test-key", server.URL)
-	order, err := client.SubmitOrder(context.Background(), "test-vm", 81, 245)
+	order, err := client.SubmitOrder(context.Background(), "test-vm", 81, 245, nil)
 	if err != nil {
 		t.Fatalf("SubmitOrder failed: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestSubmitOrder_ConfirmationFlow(t *testing.T) {
 	defer server.Close()
 
 	client := NewSHCClient("test-key", server.URL)
-	order, err := client.SubmitOrder(context.Background(), "test-vm", 81, 245)
+	order, err := client.SubmitOrder(context.Background(), "test-vm", 81, 245, nil)
 	if err != nil {
 		t.Fatalf("SubmitOrder with confirmation failed: %v", err)
 	}
