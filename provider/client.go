@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -75,9 +76,10 @@ func retryOnLockValue[T any](ctx context.Context, fn func() (T, error)) (T, erro
 }
 
 type SHCClient struct {
-	baseURL    string
-	apiKey     string
-	httpClient *http.Client
+	baseURL     string
+	apiKey      string
+	httpClient  *http.Client
+	costTracker *CostTracker
 }
 
 func NewSHCClient(apiKey, endpoint string) *SHCClient {
@@ -85,13 +87,15 @@ func NewSHCClient(apiKey, endpoint string) *SHCClient {
 		endpoint = defaultBaseURL
 	}
 
-	return &SHCClient{
+	c := &SHCClient{
 		baseURL: strings.TrimRight(endpoint, "/"),
 		apiKey:  apiKey,
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
 	}
+	c.costTracker = NewCostTracker(c)
+	return c
 }
 
 func stripNonJSONPrefix(data []byte) []byte {
@@ -652,6 +656,86 @@ func (c *SHCClient) CheckCredit(ctx context.Context, minRequired float64) error 
 		return fmt.Errorf("insufficient credit: need $%.2f, have $%.2f. Add credit at https://blesta.sovereignhybridcompute.com/client/", minRequired, available)
 	}
 	return nil
+}
+
+func (c *SHCClient) SafeCredit(ctx context.Context) float64 {
+	bal, err := c.GetBalance(ctx)
+	if err != nil {
+		return -1
+	}
+	for _, b := range bal.Balances {
+		if b.Currency == "USD" {
+			f, _ := strconv.ParseFloat(b.AvailableCredit, 64)
+			return f
+		}
+	}
+	return -1
+}
+
+func (c *SHCClient) EstimateDailyCost(ctx context.Context, packageID int64) float64 {
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/ordering/catalog", nil, "")
+	if err != nil || statusCode >= 400 {
+		return 0
+	}
+
+	unwrapped := unwrapData(respBody)
+	var catalogResp struct {
+		Items []CatalogPackageResponse `json:"items"`
+	}
+	if err := json.Unmarshal(unwrapped, &catalogResp); err != nil {
+		return 0
+	}
+
+	for _, pkg := range catalogResp.Items {
+		if pkg.PackageID == packageID {
+			for _, p := range pkg.Pricing {
+				if p.Period == "day" {
+					f, _ := strconv.ParseFloat(p.Price.String(), 64)
+					return f
+				}
+			}
+		}
+	}
+	return 0
+}
+
+func (c *SHCClient) LedgerRefund(ctx context.Context, serviceID int64) *float64 {
+	path := "/vm/" + strconv.FormatInt(serviceID, 10) + "/payments"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, path, nil, "")
+	if err != nil || statusCode >= 400 {
+		return nil
+	}
+
+	unwrapped := unwrapData(respBody)
+	var paymentsResp struct {
+		Items []struct {
+			Total flexibleString `json:"total"`
+			Paid  flexibleString `json:"paid"`
+			Amount flexibleString `json:"amount"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(unwrapped, &paymentsResp); err != nil {
+		return nil
+	}
+
+	var totalRefund float64
+	found := false
+	for _, p := range paymentsResp.Items {
+		amountStr := p.Amount.String()
+		if amountStr == "" {
+			amountStr = p.Total.String()
+		}
+		val, _ := strconv.ParseFloat(amountStr, 64)
+		if val < 0 {
+			totalRefund += math.Abs(val)
+			found = true
+		}
+	}
+	if !found {
+		zero := 0.0
+		return &zero
+	}
+	return &totalRefund
 }
 
 type CatalogPricingResponse struct {

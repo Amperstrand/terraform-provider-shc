@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -305,6 +306,7 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 		configOptions = opts
 	}
 
+	creditBefore := r.client.SafeCredit(ctx)
 	orderResp, err := r.client.SubmitOrder(ctx, plan.Hostname.ValueString(), plan.PackageID.ValueInt64(), plan.PricingID.ValueInt64(), configOptions)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating VM", fmt.Sprintf("Could not submit order: %s", err))
@@ -312,6 +314,17 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	}
 
 	serviceID := orderResp.ResolveServiceID()
+
+	if serviceID != "" {
+		sid, _ := strconv.ParseInt(serviceID, 10, 64)
+		creditAfter := r.client.SafeCredit(ctx)
+		if creditBefore >= 0 && creditAfter >= 0 {
+			actualCharge := creditBefore - creditAfter
+			r.client.costTracker.TrackOrder(ctx, sid, plan.PackageID.ValueInt64(), &actualCharge)
+		} else {
+			r.client.costTracker.TrackOrder(ctx, sid, plan.PackageID.ValueInt64(), nil)
+		}
+	}
 
 	vm, vmDiags := r.waitForProvisioning(ctx, serviceID, resp)
 	if vmDiags.HasError() {
@@ -572,11 +585,21 @@ func (r *vmResource) Delete(ctx context.Context, req resource.DeleteRequest, res
 	ctx, cancel := withTimeout(ctx, state.Timeouts, "delete", defaultVMDeleteTimeout)
 	defer cancel()
 
+	creditBefore := r.client.SafeCredit(ctx)
 	err := r.client.CancelVM(ctx, state.ServiceID.ValueString(), true)
 	if err != nil {
 		resp.Diagnostics.AddError("Error deleting VM", err.Error())
 		return
 	}
+
+	sid, _ := strconv.ParseInt(state.ServiceID.ValueString(), 10, 64)
+	var actualRefund *float64
+	creditAfter := r.client.SafeCredit(ctx)
+	if creditBefore >= 0 && creditAfter >= 0 {
+		diff := creditAfter - creditBefore
+		actualRefund = &diff
+	}
+	r.client.costTracker.AuditCancel(ctx, sid, actualRefund)
 }
 
 var _ resource.Resource = (*vmResource)(nil)
