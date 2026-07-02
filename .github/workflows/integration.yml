@@ -64,7 +64,7 @@ jobs:
             hostname := fmt.Sprintf("ci-%d", time.Now().Unix())
 
             fmt.Printf("[1/4] Order VM '%s'...\n", hostname)
-            order, err := client.SubmitOrder(ctx, hostname, 81, 245)
+            order, err := client.SubmitOrder(ctx, hostname, 81, 245, nil)
             if err != nil { fmt.Printf("FAIL: %v\n", err); os.Exit(1) }
             sid := order.ResolveServiceID()
             fmt.Printf("  OK: service_id=%s\n", sid)
