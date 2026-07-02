@@ -26,3 +26,62 @@ jobs:
 
       - name: Test
         run: go test ./... -v
+
+  size-map-drift:
+    name: Size map drift detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compare Go sizeMap against live catalog
+        run: |
+          pip install requests -q
+          python3 -c "
+          import re, sys, json, requests
+
+          # Fetch live catalog
+          resp = requests.get('https://blesta.sovereignhybridcompute.com/user-api/v2/ordering/catalog',
+              headers={'Authorization': ''}, timeout=15)
+          raw = resp.text
+          idx = raw.find('{')
+          if idx > 0: raw = raw[idx:]
+          catalog = json.loads(raw).get('data', raw if isinstance(raw, dict) else {})
+          items = catalog.get('items', []) if isinstance(catalog, dict) else []
+          live_pkgs = {}
+          for pkg in items:
+              pid = pkg.get('package_id')
+              daily = next((p for p in pkg.get('pricing', []) if p.get('period') == 'day'), None)
+              if pid and daily:
+                  live_pkgs[pid] = daily['pricing_id']
+
+          # Parse Go sizeMap
+          with open('provider/sizes.go') as f:
+              src = f.read()
+          go_entries = dict(re.findall(r'\"([\w-]+)\":\s*\{(\d+),\s*(\d+),', src))
+          go_map = {name: {'pkg': int(pkg), 'pricing': int(pricing)}
+                    for name, (pkg, pricing) in go_entries.items()}
+
+          print(f'Live catalog: {len(live_pkgs)} packages')
+          print(f'Go sizeMap: {len(go_map)} entries')
+
+          errors = []
+          for name, entry in go_map.items():
+              pkg = entry['pkg']
+              pricing = entry['pricing']
+              if pkg not in live_pkgs:
+                  errors.append(f'{name}: package_id {pkg} not in live catalog')
+              elif live_pkgs[pkg] != pricing:
+                  errors.append(f'{name}: pricing_id {pricing} != live {live_pkgs[pkg]}')
+
+          missing = set(live_pkgs) - {e['pkg'] for e in go_map.values()}
+          if missing:
+              print(f'::warning::Live catalog has {len(missing)} packages not in sizeMap: {sorted(missing)}')
+
+          if errors:
+              for e in errors:
+                  print(f'::error::{e}')
+              sys.exit(1)
+          print('Size map matches live catalog ✅')
+          "
