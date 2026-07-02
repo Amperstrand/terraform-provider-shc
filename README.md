@@ -376,4 +376,4 @@ MIT
 
 **Get SHC VPS**: [Sovereign Hybrid Compute](https://blesta.sovereignhybridcompute.com/order/forms/a/lecture-mushroom-lunar) — bitcoin-native VPS hosting
 
-> **Disclosure**: The SHC link above is an affiliate link. If you sign up through it, we may receive credit toward our SHC account at no extra cost to you.
+> **Disclosure**: The SHC link above is an affiliate link. If you sign up through it, we receive a **5% recurring commission** (grandfathered rate) on your spending, at no extra cost to you.
