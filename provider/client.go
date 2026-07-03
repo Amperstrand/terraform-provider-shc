@@ -226,20 +226,18 @@ func (c *SHCClient) ResolveAddons(ctx context.Context, packageID int64, diskGB, 
 	}
 
 	var catalogResp struct {
-		Data struct {
-			Items []struct {
-				PackageID            int64 `json:"package_id"`
-				AvailableConfigOpts []struct {
-					Options []struct {
-						OptionID int64 `json:"option_id"`
-						Name     string `json:"name"`
-						Values   []struct {
-							Value string `json:"value"`
-						} `json:"values"`
-					} `json:"options"`
-				} `json:"available_config_options"`
-			} `json:"items"`
-		} `json:"data"`
+		Items []struct {
+			PackageID            int64 `json:"package_id"`
+			AvailableConfigOpts []struct {
+				Options []struct {
+					OptionID int64 `json:"option_id"`
+					Name     string `json:"name"`
+					Values   []struct {
+						Value string `json:"value"`
+					} `json:"values"`
+				} `json:"options"`
+			} `json:"available_config_options"`
+		} `json:"items"`
 	}
 
 	unwrapped := unwrapData(respBody)
@@ -251,7 +249,7 @@ func (c *SHCClient) ResolveAddons(ctx context.Context, packageID int64, diskGB, 
 		optionID int64
 		values   map[string]bool
 	}
-	for _, pkg := range catalogResp.Data.Items {
+	for _, pkg := range catalogResp.Items {
 		if pkg.PackageID != packageID {
 			continue
 		}
