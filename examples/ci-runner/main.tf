@@ -42,7 +42,7 @@ provider "shc" {
 
 resource "shc_vm" "ci_runner" {
   hostname    = var.hostname
-  size        = "standard"
+  size        = "nvme-2c-8gb"
   ssh_key     = file(var.ssh_public_key)
   auto_cancel = true
   power_state = var.power_state
