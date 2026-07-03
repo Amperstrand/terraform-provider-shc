@@ -326,7 +326,7 @@ Before migrating from Hetzner Cloud to SHC:
 5. Set up snapshots as replacements for volume backups
 6. Remove SSH key resources and pass keys directly to VMs
 7. Remove network and server network resources
-8. Update CI/CD pipelines to account for daily billing minimum
+8. Update CI/CD pipelines to account for hourly proration billing
 9. Test SSH access and firewall rules after migration
 10. Update monitoring to use SHC metrics API
 

@@ -315,7 +315,7 @@ Before migrating from DigitalOcean to SHC:
 4. Update firewall rules to use `shc_firewall_rule` resources
 5. Set up snapshots as replacements for volume backups
 6. Remove SSH key resources and pass keys directly to VMs
-7. Update CI/CD pipelines to account for daily billing minimum
+7. Update CI/CD pipelines to account for hourly proration billing
 8. Test SSH access and firewall rules after migration
 9. Update monitoring to use SHC metrics API
 
