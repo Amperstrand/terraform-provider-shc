@@ -69,6 +69,14 @@ jobs:
             sid := order.ResolveServiceID()
             fmt.Printf("  OK: service_id=%s\n", sid)
 
+            // Schedule end-of-term cancel immediately so the VM auto-expires
+            // even if the CI run crashes before the cleanup step.
+            cancelReq, _ := http.NewRequest("POST", fmt.Sprintf("https://blesta.sovereignhybridcompute.com/user-api/v2/vm/%s/cancel", sid), nil)
+            cancelReq.Header.Set("Authorization", "Bearer "+apiKey)
+            cancelResp, _ := http.DefaultClient.Do(cancelReq)
+            cancelResp.Body.Close()
+            fmt.Printf("  Scheduled end-of-term cancel\n")
+
             fmt.Printf("[2/4] Wait for IP...\n")
             deadline := time.Now().Add(120 * time.Second)
             for time.Now().Before(deadline) {
