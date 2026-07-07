@@ -134,31 +134,27 @@ jobs:
       - name: Cleanup orphaned VMs
         if: always()
         run: |
+          pip install -q git+https://github.com/Amperstrand/shc-toolkit.git
           python3 -c "
-          import os, json, urllib.request
-          api_key = os.environ['SHC_API_KEY']
-          base = 'https://blesta.sovereignhybridcompute.com/user-api/v2'
-          req = urllib.request.Request(f'{base}/vm', headers={'Authorization': f'Bearer {api_key}'})
-          resp = urllib.request.urlopen(req, timeout=15)
-          raw = resp.read().decode()
-          idx = raw.find('{')
-          if idx > 0: raw = raw[idx:]
-          data = json.loads(raw).get('data', {})
-          vms = data.get('items', [])
+          import sys; sys.path.insert(0, '.')
+          from shc_toolkit.client import SHCClient
+          import time
+          c = SHCClient()
+          vms = c.list_vms()
+          CI_PATTERNS = ['ci-', 'pytest', 'test', 'shc-runner-', 'debug-', 'e2e-host-', 'europa-test-', 'pool-host-', 'europa-isp-', 'europa-mptcp-']
           for vm in vms:
-              hostname = vm.get('hostname', '')
-              if 'ci-' in hostname or 'test' in hostname.lower():
+              h = vm.get('hostname', '').lower()
+              if any(p in h for p in CI_PATTERNS):
                   sid = vm['id']
-                  print(f'CLEANUP: Canceling orphaned VM {sid} ({hostname})')
-                  try:
-                      cancel_req = urllib.request.Request(
-                          f'{base}/vm/{sid}/cancel',
-                          data=json.dumps({'immediate': True}).encode(),
-                          headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-                          method='POST')
-                      urllib.request.urlopen(cancel_req, timeout=15)
-                  except Exception as e:
-                      print(f'  cancel error (ignored): {e}')
-          remaining = [v for v in vms if 'ci-' in v.get('hostname','') or 'test' in v.get('hostname','').lower()]
-          print(f'After cleanup: {len(remaining)} test VMs remaining')
+                  print(f'CLEANUP: Canceling {sid} ({vm[\"hostname\"]})')
+                  for attempt in range(3):
+                      try:
+                          c.cancel_vm(sid, immediate=True)
+                          break
+                      except Exception as e:
+                          if 'locked' in str(e).lower() and attempt < 2:
+                              time.sleep(20)
+                          else:
+                              print(f'  error: {e}')
+          "
           "
