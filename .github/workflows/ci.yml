@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - name: Compare Go sizeMap against live catalog
@@ -59,9 +59,8 @@ jobs:
           # Parse Go sizeMap
           with open('provider/sizes.go') as f:
               src = f.read()
-          go_entries = dict(re.findall(r'\"([\w-]+)\":\s*\{(\d+),\s*(\d+),', src))
-          go_map = {name: {'pkg': int(pkg), 'pricing': int(pricing)}
-                    for name, (pkg, pricing) in go_entries.items()}
+          go_matches = re.findall(r'"([\w-]+)":\s*\{(\d+),\s*(\d+),', src)
+          go_map = {name: {'pkg': int(pkg), 'pricing': int(pricing)} for name, pkg, pricing in go_matches}
 
           print(f'Live catalog: {len(live_pkgs)} packages')
           print(f'Go sizeMap: {len(go_map)} entries')
