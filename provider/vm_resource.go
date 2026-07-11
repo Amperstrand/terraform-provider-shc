@@ -56,6 +56,7 @@ type vmResourceModel struct {
 	SSHKey            types.String `tfsdk:"ssh_key"`
 	AutoCancel        types.Bool   `tfsdk:"auto_cancel"`
 	PowerState        types.String `tfsdk:"power_state"`
+	Term              types.Int64  `tfsdk:"term"`
 	Nodns             types.Bool   `tfsdk:"nodns"`
 	NodnsZone         types.String `tfsdk:"nodns_zone"`
 	Fqdn              types.String `tfsdk:"fqdn"`
@@ -143,6 +144,11 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			Validators: []validator.String{
 				powerState(),
 			},
+		},
+		"term": resourceschema.Int64Attribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Billing term (pricing_id of the desired term, e.g. 56=daily, 57=weekly, 58=monthly). Changing this triggers a term change. Use `shc info <service_id>` or GET /vm/{id}/term-options to see available terms.",
 		},
 		"nodns": resourceschema.BoolAttribute{
 			Optional:    true,
@@ -559,6 +565,24 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 				resp.Diagnostics.AddError("Error starting VM", err.Error())
 				return
 			}
+		}
+	}
+
+	// Term change (v2.5.0): if the user changed the term pricing_id,
+	// call ChangeVMTerm. This is a confirmed (spends money) action.
+	if !plan.Term.IsUnknown() && !state.Term.IsUnknown() &&
+		plan.Term.ValueInt64() != state.Term.ValueInt64() &&
+		plan.Term.ValueInt64() > 0 {
+		termBody, _ := json.Marshal(map[string]interface{}{
+			"pricing_ref":     plan.Term.ValueInt64(),
+			"idempotency_key": fmt.Sprintf("tf-term-%d", time.Now().UnixNano()),
+		})
+		if _, err := r.client.ChangeVMTerm(ctx, state.ServiceID.ValueString(), termBody); err != nil {
+			resp.Diagnostics.AddError(
+				"Error changing VM term",
+				fmt.Sprintf("Could not change term to pricing_id %d: %s", plan.Term.ValueInt64(), err),
+			)
+			return
 		}
 	}
 
