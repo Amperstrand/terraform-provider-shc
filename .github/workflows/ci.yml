@@ -38,7 +38,7 @@ jobs:
       - name: Compare Go sizeMap against live catalog
         run: |
           pip install requests -q
-          python3 -c "
+          python3 << 'PYEOF'
           import re, sys, json, requests
 
           # Fetch live catalog
@@ -83,4 +83,4 @@ jobs:
                   print(f'::error::{e}')
               sys.exit(1)
           print('Size map matches live catalog ✅')
-          "
+          PYEOF
