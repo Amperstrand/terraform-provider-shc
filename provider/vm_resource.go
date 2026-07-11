@@ -568,7 +568,7 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 		}
 	}
 
-	// Term change (v2.5.0): if the user changed the term pricing_id,
+	// Term change (v2.4.3): if the user changed the term pricing_id,
 	// call ChangeVMTerm. This is a confirmed (spends money) action.
 	if !plan.Term.IsUnknown() && !state.Term.IsUnknown() &&
 		plan.Term.ValueInt64() != state.Term.ValueInt64() &&

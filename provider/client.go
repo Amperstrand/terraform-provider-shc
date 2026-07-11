@@ -1129,7 +1129,7 @@ func (c *SHCClient) ListUpgradeOptions(ctx context.Context, serviceID string) (j
  	return unwrapData(respBody), nil
  }
 
-// ── VM term + addons (v2.5.0) ──────────────────────────────
+// ── VM term + addons (v2.4.3) ──────────────────────────────
 
 func (c *SHCClient) ListVMAddons(ctx context.Context, serviceID string) (json.RawMessage, error) {
 	path := "/vm/" + serviceID + "/addons"
@@ -1221,7 +1221,7 @@ func (c *SHCClient) PreviewVMTermChange(ctx context.Context, serviceID string, b
 	return unwrapData(respBody), nil
 }
 
-// ── Orders (v2.5.0) ────────────────────────────────────────
+// ── Orders (v2.4.3) ────────────────────────────────────────
 
 func (c *SHCClient) ListOrders(ctx context.Context) (json.RawMessage, error) {
 	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/orders", nil, "")
