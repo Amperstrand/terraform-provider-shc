@@ -1123,8 +1123,141 @@ func (c *SHCClient) ListUpgradeOptions(ctx context.Context, serviceID string) (j
 	if err != nil {
 		return nil, err
 	}
+ 	if statusCode >= 400 {
+ 		return nil, fmt.Errorf("list upgrade options failed (status %d): %s", statusCode, string(respBody))
+ 	}
+ 	return unwrapData(respBody), nil
+ }
+
+// ── VM term + addons (v2.5.0) ──────────────────────────────
+
+func (c *SHCClient) ListVMAddons(ctx context.Context, serviceID string) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/addons"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return nil, err
+	}
 	if statusCode >= 400 {
-		return nil, fmt.Errorf("list upgrade options failed (status %d): %s", statusCode, string(respBody))
+		return nil, fmt.Errorf("list VM addons failed (status %d): %s", statusCode, string(respBody))
 	}
 	return unwrapData(respBody), nil
+}
+
+func (c *SHCClient) GetVMAddonOptions(ctx context.Context, serviceID string) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/addons/options"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("get VM addon options failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+func (c *SHCClient) CreateVMAddon(ctx context.Context, serviceID string, body json.RawMessage) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/addons"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodPost, path, body, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode == http.StatusConflict {
+		return c.handleConfirmation(ctx, http.MethodPost, path, body, respBody)
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("create VM addon failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+func (c *SHCClient) PreviewVMAddon(ctx context.Context, serviceID string, body json.RawMessage) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/addons/preview"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodPost, path, body, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("preview VM addon failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+func (c *SHCClient) GetVMTermOptions(ctx context.Context, serviceID string) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/term-options"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("get VM term options failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+func (c *SHCClient) ChangeVMTerm(ctx context.Context, serviceID string, body json.RawMessage) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/term"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodPost, path, body, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode == http.StatusConflict {
+		return c.handleConfirmation(ctx, http.MethodPost, path, body, respBody)
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("change VM term failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+func (c *SHCClient) PreviewVMTermChange(ctx context.Context, serviceID string, body json.RawMessage) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/term/preview"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodPost, path, body, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("preview VM term change failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+// ── Orders (v2.5.0) ────────────────────────────────────────
+
+func (c *SHCClient) ListOrders(ctx context.Context) (json.RawMessage, error) {
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/orders", nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("list orders failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+func (c *SHCClient) GetOrder(ctx context.Context, orderID string) (json.RawMessage, error) {
+	path := "/orders/" + orderID
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("get order failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+func (c *SHCClient) CancelPendingOrder(ctx context.Context, orderID string) error {
+	path := "/orders/" + orderID + "/cancel"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodPost, path, nil, "")
+	if err != nil {
+		return err
+	}
+	if statusCode == http.StatusConflict {
+		_, err = c.handleConfirmation(ctx, http.MethodPost, path, nil, respBody)
+		return err
+	}
+	if statusCode >= 400 {
+		return fmt.Errorf("cancel order failed (status %d): %s", statusCode, string(respBody))
+	}
+	return nil
 }
