@@ -44,6 +44,18 @@ type vmResource struct {
 	client *SHCClient
 }
 
+var _ resource.ResourceWithUpgradeState = (*vmResource)(nil)
+
+func (r *vmResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				resp.State.Set(ctx, req.State.Raw)
+			},
+		},
+	}
+}
+
 type vmResourceModel struct {
 	Hostname          types.String `tfsdk:"hostname"`
 	Size              types.String `tfsdk:"size"`
@@ -211,6 +223,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				},
 			},
 		},
+		Version: 1,
 	}
 }
 

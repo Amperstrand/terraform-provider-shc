@@ -1,0 +1,69 @@
+---
+# Acceptance tests for terraform-provider-shc.
+#
+# Creates + destroys real SHC Dev VPS VMs. Cost: ~$0.20/run (4 tests
+# × ~$0.05 each on dev-1c-4gb). All VMs have auto_cancel=true.
+#
+# Triggered manually via workflow_dispatch only — not on every push.
+#
+# Requires: SHC_API_KEY secret
+
+name: acceptance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * 1'
+
+jobs:
+  acceptance:
+    name: TF_ACC acceptance tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SHC_API_KEY: ${{ secrets.SHC_API_KEY }}
+      TF_ACC: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.0'
+
+      - run: go mod tidy
+
+      - name: Run acceptance tests
+        run: make testacc
+
+      - name: Reap orphaned VMs (cleanup)
+        if: always()
+        run: |
+          pip install requests -q
+          python3 << 'PYEOF'
+          import requests, json, os, time
+          api_key = os.environ.get("SHC_API_KEY", "")
+          if not api_key:
+              exit(0)
+          try:
+              resp = requests.get(
+                  "https://blesta.sovereignhybridcompute.com/user-api/v2/vm",
+                  headers={"Authorization": f"Bearer {api_key}"}, timeout=15)
+              vms = resp.json().get("data", {}).get("items", [])
+              for vm in vms:
+                  hostname = vm.get("hostname", "")
+                  sid = vm.get("id")
+                  if any(p in hostname for p in ["tf-acc-", "ci-", "pytest"]):
+                      print(f"  Cancelling orphaned VM #{sid} ({hostname})")
+                      try:
+                          requests.post(
+                              f"https://blesta.sovereignhybridcompute.com/user-api/v2/vm/{sid}/cancel",
+                              headers={"Authorization": f"Bearer {api_key}"},
+                              json={"immediate": True}, timeout=15)
+                      except: pass
+          except Exception as e:
+              print(f"Cleanup error: {e}")
+          PYEOF
