@@ -140,7 +140,8 @@ jobs:
           "
 
       - name: Cleanup orphaned VMs
-        if: always()
+        if: always() && env.SHC_API_KEY != ''
+        continue-on-error: true
         run: |
           pip install -q git+https://github.com/Amperstrand/shc-toolkit.git
           python3 -c "
