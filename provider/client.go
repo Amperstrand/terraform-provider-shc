@@ -1261,3 +1261,61 @@ func (c *SHCClient) CancelPendingOrder(ctx context.Context, orderID string) erro
 	}
 	return nil
 }
+
+// ── VM standby/resume (v2.4.6) ───────────────────────────
+
+func (c *SHCClient) StandbyVM(ctx context.Context, serviceID string, keepIP bool) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/standby"
+	body, _ := json.Marshal(map[string]interface{}{"keep_ip": keepIP})
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodPost, path, body, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode == http.StatusConflict {
+		return c.handleConfirmation(ctx, http.MethodPost, path, body, respBody)
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("standby VM failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+func (c *SHCClient) PreviewStandby(ctx context.Context, serviceID string) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/standby/preview"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("preview standby failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+func (c *SHCClient) ResumeVM(ctx context.Context, serviceID string) (json.RawMessage, error) {
+	path := "/vm/" + serviceID + "/resume"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodPost, path, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode == http.StatusConflict {
+		return c.handleConfirmation(ctx, http.MethodPost, path, nil, respBody)
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("resume VM failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
+
+// ── Events + agent sessions (v2.4.6) ─────────────────────
+
+func (c *SHCClient) ListEvents(ctx context.Context) (json.RawMessage, error) {
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/events", nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("list events failed (status %d): %s", statusCode, string(respBody))
+	}
+	return unwrapData(respBody), nil
+}
