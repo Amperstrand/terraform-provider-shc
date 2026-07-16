@@ -19,6 +19,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Size-map drift: skip when no API key (false positive on 401)
 - Action versions bumped to v7/v6
 
+## [Unreleased]
+
+### Added
+- Go client methods for v2.4.6: StandbyVM, PreviewStandby, ResumeVM, ListEvents
+- `term` attribute on VM resource (v2.4.3 VM term management)
+- Schema versioning: `Version: 1` with no-op StateUpgrader
+- 4 TF_ACC acceptance tests (basic, size, template, import)
+- GNUmakefile with build, test, testacc, fmt targets
+- Acceptance CI workflow (workflow_dispatch + weekly schedule)
+
+### Fixed
+- Size-map drift detection: dict comprehension error + heredoc bash quoting
+- Size-map drift: skip when no API key (false positive on 401)
+- Integration cleanup step: continue-on-error + env guard
+
 ## [0.1.0] — 2026-07-02
 
 Initial release with:

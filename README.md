@@ -51,6 +51,7 @@ terraform apply
 - Size abstraction: pick a plan by spec-encoding name (`size = "nvme-2c-8gb"`) instead of numeric IDs
 - In-place upgrade: change `size` or `package_id`/`pricing_id` to upgrade without recreate
 - Power management: start/stop a VM with `power_state = "stopped"`
+- **Billing term management**: change `term` to switch billing period (v2.4.6)
 - NoDNS: auto-publish a `.nodns.shop` or `.dns4sats.xyz` hostname via Nostr
 - Firewall: manage per-VM firewall rules (`shc_firewall_rule`)
 - Reverse DNS: manage PTR records (`shc_rdns`)
@@ -61,6 +62,7 @@ terraform apply
 - Credit safety: pre-checks account credit before ordering to prevent surprise billing
 - Data sources: browse the catalog, templates, and machine types
 - Import: bring existing VMs under Terraform management
+- Schema versioning: `SchemaVersion: 1` with state upgrader for future breaking changes
 
 ## Requirements
 
@@ -127,6 +129,7 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | `ssh_key`     | string | no       | SSH public key to apply after provisioning. |
 | `auto_cancel` | bool   | no       | If `true` (default), schedules end-of-term cancellation so the VPS does not auto-renew. |
 | `power_state` | string | no       | Desired power state: `running` (default) or `stopped`. Changing this triggers a start/stop without replacing the VM. |
+| `term`        | number | no       | Billing term (pricing_id of the desired term, e.g. 56=daily, 58=monthly). Changing this triggers a term change. Use `shc info <service_id>` or GET /vm/{id}/term-options to see available terms. |
 | `nodns`       | bool   | no       | If `true`, auto-publishes a NoDNS record pointing to the VM's IP after provisioning. Requires `python3` + `shc-toolkit` on the runner. |
 | `nodns_zone`  | string | no       | NoDNS zone: `nodns.shop` (default) or `dns4sats.xyz`. Only used when `nodns = true`. |
 
