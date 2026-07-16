@@ -5,7 +5,7 @@ Terraform provider for Sovereign Hybrid Compute (SHC) VPS. Manage SHC virtual ma
 ## Related Projects
 
 - [shc-toolkit](https://github.com/Amperstrand/shc-toolkit) — Python client, CLI, and provisioning toolkit for SHC
-- [shc-pulumi](https://github.com/Amperstrand/shc-pulumi) — Pulumi provider for SHC
+- [shc-pulumi](https://github.com/Amperstrand/shc-pulumi) — Pulumi provider for SHC (maintenance mode — use TF bridge for new projects)
 
 ## Quick Start
 
