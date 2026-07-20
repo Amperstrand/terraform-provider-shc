@@ -51,7 +51,7 @@ func TestUpdateCloudInitConfirmation(t *testing.T) {
 		if callCount == 1 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(409)
-			w.Write([]byte(`{"error":{"code":"confirmation_required","message":"confirm"},"confirmation":{"structuredContent":{"confirmation_id":"cnf_test123"}}}`))
+			w.Write([]byte(`{"error":{"code":"confirmation_required","message":"confirm"},"confirmation":{"confirmation_id":"cnf_test123"}}`))
 			return
 		}
 		if r.Header.Get("X-User-Api-Confirm") != "cnf_test123" {
@@ -80,7 +80,7 @@ func TestDeleteCloudInitConfirmation(t *testing.T) {
 		if callCount == 1 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(409)
-			w.Write([]byte(`{"error":{"code":"confirmation_required","message":"confirm"},"confirmation":{"structuredContent":{"confirmation_id":"cnf_del123"}}}`))
+			w.Write([]byte(`{"error":{"code":"confirmation_required","message":"confirm"},"confirmation":{"confirmation_id":"cnf_del123"}}`))
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -133,5 +133,60 @@ func TestBatchOverLimit(t *testing.T) {
 	_, err := client.Batch(t.Context(), reqs)
 	if err == nil {
 		t.Fatal("expected error for >25 requests")
+	}
+}
+
+func TestConfirmationStablePath(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(409)
+			w.Write([]byte(`{"error":{"code":"confirmation_required"},"confirmation":{"confirmation_id":"cnf_stable_456"}}`))
+			return
+		}
+		if r.Header.Get("X-User-Api-Confirm") != "cnf_stable_456" {
+			t.Errorf("expected confirm header cnf_stable_456, got %s", r.Header.Get("X-User-Api-Confirm"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"data":{"ok":true}}`))
+	}))
+	defer server.Close()
+
+	client := NewSHCClient("test-key", server.URL)
+	_, err := client.DeleteCloudInit(t.Context(), "1077")
+	if err != nil {
+		t.Fatalf("stable-path confirmation failed: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 calls, got %d", callCount)
+	}
+}
+
+func TestConfirmationLegacyFallback(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(409)
+			w.Write([]byte(`{"error":{"code":"confirmation_required"},"confirmation":{"structuredContent":{"confirmation_id":"cnf_legacy_789"}}}`))
+			return
+		}
+		if r.Header.Get("X-User-Api-Confirm") != "cnf_legacy_789" {
+			t.Errorf("expected confirm header cnf_legacy_789, got %s", r.Header.Get("X-User-Api-Confirm"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"data":{"ok":true}}`))
+	}))
+	defer server.Close()
+
+	client := NewSHCClient("test-key", server.URL)
+	_, err := client.DeleteCloudInit(t.Context(), "1077")
+	if err != nil {
+		t.Fatalf("legacy-path fallback failed: %v", err)
 	}
 }

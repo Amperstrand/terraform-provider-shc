@@ -134,6 +134,7 @@ type confirmationResponse struct {
 		Code string `json:"code"`
 	} `json:"error"`
 	Confirmation struct {
+		ConfirmationID    string `json:"confirmation_id"`
 		StructuredContent struct {
 			ConfirmationID string `json:"confirmation_id"`
 		} `json:"structuredContent"`
@@ -141,6 +142,9 @@ type confirmationResponse struct {
 }
 
 func (c confirmationResponse) GetConfirmationID() string {
+	if c.Confirmation.ConfirmationID != "" {
+		return c.Confirmation.ConfirmationID
+	}
 	return c.Confirmation.StructuredContent.ConfirmationID
 }
 
