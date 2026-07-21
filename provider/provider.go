@@ -94,6 +94,8 @@ func (p *SHCProvider) DataSources(_ context.Context) []func() datasource.DataSou
 		NewCatalogDataSource,
 		NewTemplatesDataSource,
 		NewMachineTypesDataSource,
+		NewEventsDataSource,
+		NewBalanceDataSource,
 	}
 }
 
