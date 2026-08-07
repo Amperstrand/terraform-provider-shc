@@ -1,13 +1,16 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 func testAccPreCheck(t *testing.T) {
@@ -23,33 +26,47 @@ func testAccProtoV6ProviderFactories() map[string]func() (tfprotov6.ProviderServ
 }
 
 func TestAccVMResource_Basic(t *testing.T) {
+	hostname := "tf-acc-test-vm-" + acctest.RandString(8)
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckVMDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccVMResourceConfig("tf-acc-basic"),
+				Config: testAccVMResourceConfig(hostname),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
 					resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
 					resource.TestCheckResourceAttr("shc_vm.test", "status", "active"),
+					resource.TestCheckResourceAttr("shc_vm.test", "hostname", hostname),
 				),
 			},
 		},
 	})
 }
 
-func TestAccVMResource_WithSize(t *testing.T) {
+func TestAccVMResource_UpdateSize(t *testing.T) {
+	hostname := "tf-acc-test-vm-upd-" + acctest.RandString(8)
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckVMDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccVMResourceConfigWithSize("tf-acc-size", "dev-1c-4gb"),
+				Config: testAccVMResourceConfigWithSize(hostname, "nvme-1c-4gb"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
 					resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
 					resource.TestCheckResourceAttr("shc_vm.test", "status", "active"),
+				),
+			},
+			{
+				Config: testAccVMResourceConfigWithSize(hostname, "nvme-2c-8gb"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
+					resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
 				),
 			},
 		},
@@ -57,12 +74,15 @@ func TestAccVMResource_WithSize(t *testing.T) {
 }
 
 func TestAccVMResource_WithTemplate(t *testing.T) {
+	hostname := "tf-acc-test-vm-tmpl-" + acctest.RandString(8)
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckVMDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccVMResourceConfigWithTemplate("tf-acc-tmpl", "debian12-cloud"),
+				Config: testAccVMResourceConfigWithTemplate(hostname, "debian12-cloud"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
 					resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
@@ -74,26 +94,71 @@ func TestAccVMResource_WithTemplate(t *testing.T) {
 }
 
 func TestAccVMResource_Import(t *testing.T) {
+	hostname := "tf-acc-test-vm-imp-" + acctest.RandString(8)
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckVMDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccVMResourceConfig("tf-acc-import"),
+				Config: testAccVMResourceConfig(hostname),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
 				),
 			},
 			{
-				ResourceName:      "shc_vm.test",
-				ImportState:       true,
-				ImportStateVerify: true,
-				ImportStateVerifyIgnore: []string{
-					"auto_cancel", "ssh_key", "timeouts",
-				},
+				ResourceName:            "shc_vm.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"auto_cancel", "ssh_key", "timeouts"},
 			},
 		},
 	})
+}
+
+func TestAccVMResource_InvalidHostname(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccVMResourceInvalidHostname(),
+				ExpectError: nil,
+			},
+		},
+	})
+}
+
+func TestAccVMResource_InvalidSize(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccVMResourceInvalidSize(),
+				ExpectError: nil,
+			},
+		},
+	})
+}
+
+func testAccCheckVMDestroy(s *terraform.State) error {
+	client := NewSHCClient(os.Getenv("SHC_API_KEY"), "")
+	for _, rs := range s.RootModule().Resources {
+		if rs.Type != "shc_vm" {
+			continue
+		}
+		serviceID := rs.Primary.Attributes["service_id"]
+		if serviceID == "" {
+			continue
+		}
+		_, err := client.GetVM(context.Background(), serviceID)
+		if err == nil {
+			return fmt.Errorf("SHC VM %s still exists", serviceID)
+		}
+	}
+	return nil
 }
 
 func testAccVMResourceConfig(hostname string) string {
@@ -120,6 +185,7 @@ provider "shc" {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "%s"
+  template    = "debian12-cloud"
   auto_cancel = true
 }
 `, os.Getenv("SHC_API_KEY"), hostname, size)
@@ -133,9 +199,37 @@ provider "shc" {
 
 resource "shc_vm" "test" {
   hostname    = "%s"
-  size        = "dev-1c-4gb"
+  size        = "nvme-1c-4gb"
   template    = "%s"
   auto_cancel = true
 }
 `, os.Getenv("SHC_API_KEY"), hostname, template)
+}
+
+func testAccVMResourceInvalidHostname() string {
+	return fmt.Sprintf(`
+provider "shc" {
+  api_key = "%s"
+}
+
+resource "shc_vm" "test" {
+  hostname    = "UPPER CASE!"
+  size        = "nvme-1c-4gb"
+  auto_cancel = true
+}
+`, os.Getenv("SHC_API_KEY"))
+}
+
+func testAccVMResourceInvalidSize() string {
+	return fmt.Sprintf(`
+provider "shc" {
+  api_key = "%s"
+}
+
+resource "shc_vm" "test" {
+  hostname    = "tf-acc-test-vm"
+  size        = "nvme-99c-999gb"
+  auto_cancel = true
+}
+`, os.Getenv("SHC_API_KEY"))
 }

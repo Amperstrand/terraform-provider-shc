@@ -443,6 +443,44 @@ func (c *SHCClient) GetVM(ctx context.Context, serviceID string) (*VMResponse, e
 	return &vmResp, nil
 }
 
+type SweepVM struct {
+	ServiceID string
+	Hostname  string
+	Status    string
+}
+
+func (c *SHCClient) ListVMsForSweep() ([]SweepVM, error) {
+	statusCode, respBody, err := c.doRequest(context.Background(), http.MethodGet, "/vm", nil, "")
+	if err != nil {
+		return nil, fmt.Errorf("listing VMs: %w", err)
+	}
+	if statusCode >= 400 {
+		return nil, fmt.Errorf("list VMs failed (status %d): %s", statusCode, string(respBody))
+	}
+
+	var listResp struct {
+		Items []struct {
+			ServiceID flexibleString `json:"service_id"`
+			Hostname  string         `json:"hostname"`
+			Status    string         `json:"service_status"`
+		} `json:"items"`
+	}
+	unwrapped := unwrapData(respBody)
+	if err := json.Unmarshal(unwrapped, &listResp); err != nil {
+		return nil, fmt.Errorf("parsing VM list: %w", err)
+	}
+
+	var vms []SweepVM
+	for _, item := range listResp.Items {
+		vms = append(vms, SweepVM{
+			ServiceID: item.ServiceID.String(),
+			Hostname:  item.Hostname,
+			Status:    item.Status,
+		})
+	}
+	return vms, nil
+}
+
 func (c *SHCClient) CancelVM(ctx context.Context, serviceID string, immediate bool) error {
 	return retryOnLock(ctx, func() error {
 		return c.cancelVMOnce(ctx, serviceID, immediate)
