@@ -1,0 +1,172 @@
+name: Zone Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      plans:
+        description: 'Comma-separated size names to benchmark (e.g. nvme-1c-4gb,ssd-1c-4gb)'
+        required: false
+        default: 'nvme-1c-4gb'
+      runtime_minutes:
+        description: 'Minutes to keep each VM alive for benchmarks'
+        required: false
+        default: '5'
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install shc-toolkit
+        run: pip install -e .
+
+      - name: Run benchmarks
+        env:
+          SHC_API_KEY: ${{ secrets.SHC_API_KEY }}
+          PLANS: ${{ github.event.inputs.plans || 'nvme-1c-4gb' }}
+          RUNTIME_MINUTES: ${{ github.event.inputs.runtime_minutes || '5' }}
+        run: |
+          python3 -c "
+          import os, time, json, subprocess, tempfile
+          from shc_toolkit.client import SHCClient
+
+          c = SHCClient(api_key=os.environ['SHC_API_KEY'])
+          plans = os.environ['PLANS'].split(',')
+          runtime = int(os.environ['RUNTIME_MINUTES']) * 60
+          results = []
+
+          for size in plans:
+              size = size.strip()
+              hostname = f'test-bench-{size.replace(\"-\",\"\")}'
+              print(f'\\n=== Benchmarking {size} ===')
+
+              # Order VM
+              try:
+                  from shc_toolkit.sizes import resolve_size
+                  pkg, pricing = resolve_size(size)
+                  vm = c.order_vm(
+                      hostname=hostname,
+                      package_id=pkg,
+                      pricing_id=pricing,
+                      config_options={126: 'debian12-cloud'},
+                      auto_cancel=True,
+                      pay=True,
+                  )
+                  sid = vm.get('service_id') or vm.get('id')
+                  print(f'  Ordered: service_id={sid}')
+              except Exception as e:
+                  print(f'  ORDER FAILED: {e}')
+                  results.append({'size': size, 'status': 'order_failed', 'error': str(e)})
+                  continue
+
+              # Wait for active + IP
+              start = time.time()
+              ip = None
+              for _ in range(60):
+                  time.sleep(10)
+                  try:
+                      info = c.get_vm(sid)
+                      status = info.get('service_status', '')
+                      ips = info.get('ips', [])
+                      if status == 'active' and ips:
+                          ip = ips[0].get('ip', '')
+                          break
+                  except Exception:
+                      pass
+              ready_after = int(time.time() - start)
+
+              if not ip:
+                  print(f'  PROVISIONING TIMEOUT after {ready_after}s')
+                  results.append({'size': size, 'status': 'provisioning_timeout'})
+                  c.cancel_vm(sid, immediate=True)
+                  continue
+
+              print(f'  Ready in {ready_after}s, IP={ip}')
+
+              # Run benchmarks via SSH
+              bench = {}
+              try:
+                  import paramiko
+                  ssh = paramiko.SSHClient()
+                  ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                  key_path = os.path.expanduser('~/.ssh/id_ed25519')
+                  if not os.path.exists(key_path):
+                      key_path = os.path.expanduser('~/.ssh/id_rsa')
+                  ssh.connect(ip, username='debian', key_filename=key_path, timeout=30)
+
+                  # CPU benchmark
+                  _, stdout, _ = ssh.exec_command('sysbench --test=cpu --cpu-max-prime=20000 run 2>/dev/null | grep events/s')
+                  cpu_line = stdout.read().decode().strip()
+                  if cpu_line:
+                      bench['cpu_events_per_sec'] = float(cpu_line.split()[-1])
+
+                  # Disk write
+                  _, stdout, _ = ssh.exec_command('dd if=/dev/zero of=/tmp/bench bs=1M count=512 oflag=dsync 2>&1 | tail -1')
+                  dd_line = stdout.read().decode().strip()
+                  if dd_line:
+                      import re
+                      m = re.search(r'([\d.]+) (\w+)/s', dd_line)
+                      if m:
+                          bench['disk_write'] = f'{m.group(1)} {m.group(2)}/s'
+
+                  # Disk read
+                  _, stdout, _ = ssh.exec_command('dd if=/tmp/bench of=/dev/null bs=1M 2>&1 | tail -1')
+                  dd_line = stdout.read().decode().strip()
+                  if dd_line:
+                      import re
+                      m = re.search(r'([\d.]+) (\w+)/s', dd_line)
+                      if m:
+                          bench['disk_read'] = f'{m.group(1)} {m.group(2)}/s'
+
+                  # Network download
+                  _, stdout, _ = ssh.exec_command('curl -so /dev/null -w \"%{speed_download}\" http://speedtest.tele2.net/10MB.zip 2>/dev/null')
+                  speed = stdout.read().decode().strip()
+                  if speed:
+                      bench['network_download_bps'] = float(speed)
+
+                  ssh.close()
+                  print(f'  Benchmarks: {json.dumps(bench, indent=2)}')
+              except Exception as e:
+                  print(f'  BENCHMARK FAILED: {e}')
+                  bench['error'] = str(e)
+
+              # Keep alive for specified runtime
+              remaining = max(0, runtime - ready_after)
+              if remaining > 0:
+                  print(f'  Keeping alive for {remaining}s...')
+                  time.sleep(remaining)
+
+              # Destroy
+              c.cancel_vm(sid, immediate=True)
+              print(f'  Destroyed.')
+
+              results.append({
+                  'size': size,
+                  'status': 'ok',
+                  'ready_after_seconds': ready_after,
+                  'ip': ip,
+                  'benchmarks': bench,
+              })
+
+          print(f'\\n=== RESULTS ===')
+          print(json.dumps(results, indent=2))
+          "
+
+      - name: Reap orphaned VMs (safety net)
+        if: always()
+        env:
+          SHC_API_KEY: ${{ secrets.SHC_API_KEY }}
+        run: |
+          python3 -c "
+          from shc_toolkit.client import SHCClient
+          import os
+          c = SHCClient(api_key=os.environ['SHC_API_KEY'])
+          orphans = c.reap_orphans(max_age_hours=0, dry_run=False)
+          print(f'Reaped {len(orphans)} orphaned VMs')
+          "

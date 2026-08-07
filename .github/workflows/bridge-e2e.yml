@@ -1,0 +1,82 @@
+name: Bridge E2E
+
+on:
+  schedule:
+    - cron: '17 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  bridge-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - uses: pulumi/action-install-pulumi-cli@v2
+
+      - name: Install shc-toolkit
+        run: pip install -e .
+
+      - name: Build provider
+        run: go build -o terraform-provider-shc .
+        working-directory: ../terraform-provider-shc
+
+      - name: Clone terraform-provider-shc
+        run: git clone --depth=1 https://github.com/Amperstrand/terraform-provider-shc.git ../terraform-provider-shc
+
+      - name: Build provider binary
+        run: cd ../terraform-provider-shc && go build -o terraform-provider-shc .
+
+      - name: Create Pulumi project
+        env:
+          SHC_API_KEY: ${{ secrets.SHC_API_KEY }}
+          PULUMI_CONFIG_PASSPHRASE: bridge-e2e
+          PATH: /tmp/tf-provider:${{ env.PATH }}
+        run: |
+          mkdir -p /tmp/bridge-e2e && cd /tmp/bridge-e2e
+          pulumi login --local
+          pulumi new python --name bridge-e2e --yes
+          cp ../terraform-provider-shc/terraform-provider-shc /tmp/tf-provider/
+          export PATH="/tmp/tf-provider:$PATH"
+          export PYTHONPATH="$PWD/sdks/shc"
+          pulumi stack init dev
+          pulumi config set shc:apiKey "$SHC_API_KEY" --secret
+          pulumi package add terraform-provider /tmp/tf-provider/terraform-provider-shc
+
+          cat > __main__.py << 'PYEOF'
+          import pulumi
+          import pulumi_shc as shc
+
+          vm = shc.Vm("test-bridge-ci",
+              hostname="test-bridge-ci",
+              size="nvme-1c-4gb",
+              template="debian12-cloud",
+              auto_cancel=True,
+          )
+          pulumi.export("ip", vm.ip)
+          pulumi.export("service_id", vm.service_id)
+          PYEOF
+
+          pulumi up --yes
+          pulumi destroy --yes
+
+      - name: Reap orphaned VMs (safety net)
+        if: always()
+        env:
+          SHC_API_KEY: ${{ secrets.SHC_API_KEY }}
+        run: |
+          python3 -c "
+          from shc_toolkit.client import SHCClient
+          import os
+          c = SHCClient(api_key=os.environ['SHC_API_KEY'])
+          orphans = c.reap_orphans(max_age_hours=0, dry_run=False)
+          print(f'Reaped {len(orphans)} orphaned VMs')
+          "
