@@ -22,7 +22,7 @@ func TestAccSnapshotResource_Basic(t *testing.T) {
 			Config: testAccSnapshotConfig(hostname),
 			Check: resource.ComposeTestCheckFunc(
 				resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
-				resource.TestCheckResourceAttrSet("shc_snapshot.test", "id"),
+				resource.TestCheckResourceAttrSet("shc_snapshot.test", "snapshot_id"),
 				resource.TestCheckResourceAttr("shc_snapshot.test", "name", "pre-deploy"),
 			),
 		}},

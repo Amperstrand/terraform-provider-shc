@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Default timeouts applied to VM CRUD operations unless overridden by the
@@ -278,6 +279,11 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 		return
 	}
 
+	tflog.Info(ctx, "Creating SHC VM", map[string]any{
+		"hostname": plan.Hostname.ValueString(),
+		"size":     plan.Size.ValueString(),
+	})
+
 	// Resolve the size abstraction. If `size` is set it takes precedence over
 	// package_id/pricing_id. At least one of (size) or (package_id+pricing_id)
 	// must be provided, otherwise we cannot submit an order.
@@ -326,6 +332,7 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	}
 
 	serviceID := orderResp.ResolveServiceID()
+	tflog.Info(ctx, "VM ordered", map[string]any{"service_id": serviceID})
 
 	if serviceID != "" {
 		sid, _ := strconv.ParseInt(serviceID, 10, 64)
@@ -400,7 +407,10 @@ func (r *vmResource) waitForProvisioning(ctx context.Context, serviceID string, 
 
 		if err == nil {
 			lastVM = vm
-			if vm.ProvisioningState == "ready" || (vm.Status == "active" && vm.GetIP() != "") {
+			if vm.Status == "active" && vm.GetIP() != "" {
+				tflog.Info(ctx, "VM provisioned", map[string]any{
+					"service_id": serviceID, "ip": vm.GetIP(), "attempts": attempt,
+				})
 				return vm, nil
 			}
 		}
@@ -428,6 +438,7 @@ func (r *vmResource) waitForProvisioning(ctx context.Context, serviceID string, 
 }
 
 func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Debug(ctx, "Reading VM state")
 	var state vmResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -463,6 +474,7 @@ func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 }
 
 func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	tflog.Info(ctx, "Updating VM")
 	var plan, state vmResourceModel
 
 	diags := req.Plan.Get(ctx, &plan)
@@ -552,6 +564,7 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 }
 
 func (r *vmResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Info(ctx, "Destroying VM")
 	var state vmResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)

@@ -144,7 +144,7 @@ func (r *firewallRuleResource) Create(ctx context.Context, req resource.CreateRe
 		"direction": plan.Direction.ValueString(),
 	}
 	if !plan.Port.IsNull() && plan.Port.ValueString() != "" {
-		ruleBody["port"] = plan.Port.ValueString()
+		ruleBody["dest_port"] = plan.Port.ValueString()
 	}
 	if !plan.Name.IsNull() && plan.Name.ValueString() != "" {
 		ruleBody["name"] = plan.Name.ValueString()
@@ -196,8 +196,8 @@ func (r *firewallRuleResource) Read(ctx context.Context, req resource.ReadReques
 	for _, rule := range fw.Rules {
 		if rule.Position.Int64() == targetPos {
 			found = true
-			state.Action = types.StringValue(rule.Action)
-			state.Protocol = types.StringValue(rule.Protocol)
+			state.Action = types.StringValue(strings.ToLower(rule.Action))
+			state.Protocol = types.StringValue(strings.ToLower(rule.Protocol))
 			state.Port = types.StringValue(rule.Port)
 			state.Source = types.StringValue(rule.Source)
 			state.Direction = types.StringValue(rule.Direction)

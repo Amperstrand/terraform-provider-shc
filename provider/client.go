@@ -627,7 +627,7 @@ func (c *SHCClient) DeleteSnapshot(ctx context.Context, serviceID, snapshotID st
 func (c *SHCClient) deleteSnapshotOnce(ctx context.Context, serviceID, snapshotID string) error {
 	path := "/vm/" + serviceID + "/snapshots/delete"
 
-	body, err := json.Marshal(map[string]string{"snapshot_id": snapshotID})
+	body, err := json.Marshal(map[string]string{"backup_id": snapshotID})
 	if err != nil {
 		return fmt.Errorf("marshaling delete snapshot request: %w", err)
 	}
@@ -1245,28 +1245,46 @@ func (c *SHCClient) RestoreBackup(ctx context.Context, serviceID, backupID strin
 }
 
 func (c *SHCClient) UpgradeVM(ctx context.Context, serviceID string, pricingRef int64) error {
-	path := "/vm/" + serviceID + "/upgrade"
+	const maxUpgradeRetries = 5
+	const upgradeRetryDelay = 15 * time.Second
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"pricing_ref":     pricingRef,
 		"idempotency_key": fmt.Sprintf("tf-upgrade-%d", time.Now().UnixNano()),
 	})
 
-	statusCode, respBody, err := c.doRequest(ctx, http.MethodPatch, path, body, "")
-	if err != nil {
-		return err
-	}
+	var lastErr error
+	for attempt := 0; attempt <= maxUpgradeRetries; attempt++ {
+		path := "/vm/" + serviceID + "/upgrade"
 
-	if statusCode == http.StatusConflict {
-		_, err = c.handleConfirmation(ctx, http.MethodPatch, path, body, respBody)
-		return err
-	}
+		statusCode, respBody, err := c.doRequest(ctx, http.MethodPatch, path, body, "")
+		if err != nil {
+			return err
+		}
 
-	if statusCode >= 400 {
-		return fmt.Errorf("upgrade failed (status %d): %s", statusCode, string(respBody))
-	}
+		if statusCode == http.StatusConflict {
+			_, err = c.handleConfirmation(ctx, http.MethodPatch, path, body, respBody)
+			return err
+		}
 
-	return nil
+		if statusCode >= 400 {
+			errBody := string(respBody)
+			lastErr = fmt.Errorf("upgrade failed (status %d): %s", statusCode, errBody)
+
+			if attempt < maxUpgradeRetries && strings.Contains(errBody, "service_not_active") {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(upgradeRetryDelay):
+				}
+				continue
+			}
+			return lastErr
+		}
+
+		return nil
+	}
+	return fmt.Errorf("upgrade failed after %d retries: %w", maxUpgradeRetries, lastErr)
 }
 
 func (c *SHCClient) ListUpgradeOptions(ctx context.Context, serviceID string) (json.RawMessage, error) {
