@@ -94,7 +94,7 @@ func (r *firewallRuleResource) Schema(_ context.Context, _ resource.SchemaReques
 				Computed:    true,
 				Description: "The position of the rule in the chain.",
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+					int64planmodifier.UseStateForUnknown(),
 				},
 			},
 		},

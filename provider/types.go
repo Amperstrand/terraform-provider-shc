@@ -152,7 +152,7 @@ type FirewallRuleResponse struct {
 	Position flexibleString `json:"position"`
 	Action   string         `json:"action"`
 	Protocol string         `json:"protocol"`
-	Port     string         `json:"port"`
+	Port     string         `json:"dest_port"`
 	Source   string         `json:"source"`
 	Direction string        `json:"direction"`
 	Name     string         `json:"name"`

@@ -627,7 +627,11 @@ func (c *SHCClient) DeleteSnapshot(ctx context.Context, serviceID, snapshotID st
 func (c *SHCClient) deleteSnapshotOnce(ctx context.Context, serviceID, snapshotID string) error {
 	path := "/vm/" + serviceID + "/snapshots/delete"
 
-	body, err := json.Marshal(map[string]string{"backup_id": snapshotID})
+	body, err := json.Marshal(map[string]string{
+		"backup_id":   snapshotID,
+		"snapshot_id": snapshotID,
+		"id":          snapshotID,
+	})
 	if err != nil {
 		return fmt.Errorf("marshaling delete snapshot request: %w", err)
 	}
@@ -1245,8 +1249,8 @@ func (c *SHCClient) RestoreBackup(ctx context.Context, serviceID, backupID strin
 }
 
 func (c *SHCClient) UpgradeVM(ctx context.Context, serviceID string, pricingRef int64) error {
-	const maxUpgradeRetries = 5
-	const upgradeRetryDelay = 15 * time.Second
+	const maxUpgradeRetries = 8
+	const upgradeRetryDelay = 20 * time.Second
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"pricing_ref":     pricingRef,
