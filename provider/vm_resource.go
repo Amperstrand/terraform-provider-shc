@@ -1,12 +1,10 @@
 package provider
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"time"
 
@@ -69,10 +67,6 @@ type vmResourceModel struct {
 	AutoCancel        types.Bool   `tfsdk:"auto_cancel"`
 	PowerState        types.String `tfsdk:"power_state"`
 	Term              types.Int64  `tfsdk:"term"`
-	Nodns             types.Bool   `tfsdk:"nodns"`
-	NodnsZone         types.String `tfsdk:"nodns_zone"`
-	Fqdn              types.String `tfsdk:"fqdn"`
-	NodnsNsec         types.String `tfsdk:"nodns_nsec"`
 	IP                types.String `tfsdk:"ip"`
 	ServiceID         types.String `tfsdk:"service_id"`
 	OSUser            types.String `tfsdk:"os_user"`
@@ -93,15 +87,19 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 	resp.Schema = resourceschema.Schema{
 		Description: "Manages a Sovereign Hybrid Compute VPS instance.",
 		Attributes: map[string]resourceschema.Attribute{
-			"hostname": resourceschema.StringAttribute{
-				Required:    true,
-				Description: "The hostname for the VPS instance.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+		"hostname": resourceschema.StringAttribute{
+			Required:    true,
+			Description: "The hostname for the VPS instance.",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.RequiresReplace(),
 			},
+			Validators: []validator.String{
+				hostname(),
+			},
+		},
 		"package_id": resourceschema.Int64Attribute{
 			Optional:    true,
+			Computed:    true,
 			Description: "The SHC package ID. Use `data shc_catalog` to discover valid values, or use `size` for a human-readable alias. Changing this triggers an in-place upgrade; only upgrades (more CPU/RAM/disk) are supported by the SHC API.",
 			PlanModifiers: []planmodifier.Int64{
 				packageIDUpgrade(),
@@ -112,6 +110,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 		},
 		"pricing_id": resourceschema.Int64Attribute{
 			Optional:    true,
+			Computed:    true,
 			Description: "The SHC pricing ID for the chosen package. Use `data shc_catalog` to discover valid values, or use `size` for a human-readable alias. Changing this triggers an in-place upgrade via the SHC upgrade API.",
 			Validators: []validator.Int64{
 				positiveInt64(),
@@ -120,18 +119,30 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 		"size": resourceschema.StringAttribute{
 			Optional:    true,
 			Description: "Spec-encoding size name: {line}-{cpu}c-{ram}gb (e.g. nvme-2c-8gb, hdd-1c-4gb, ssd-4c-16gb, dev-8c-32gb). Takes precedence over package_id/pricing_id when both are set.",
+			Validators: []validator.String{
+				sizeValidatorFn(),
+			},
 		},
 		"disk_gb": resourceschema.Int64Attribute{
 			Optional: true,
 			Description: "Override total disk in GB. Resolved to the package's config option at order time. Must be an available value for the selected plan.",
+			Validators: []validator.Int64{
+				positiveInt64(),
+			},
 		},
 		"ram_mb": resourceschema.Int64Attribute{
 			Optional: true,
 			Description: "Override total RAM in MB. Resolved to the package's config option at order time.",
+			Validators: []validator.Int64{
+				positiveInt64(),
+			},
 		},
 		"cpu": resourceschema.Int64Attribute{
 			Optional: true,
 			Description: "Override total vCPU cores. Resolved to the package's config option at order time.",
+			Validators: []validator.Int64{
+				positiveInt64(),
+			},
 		},
 		"template": resourceschema.StringAttribute{
 			Optional: true,
@@ -157,20 +168,11 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				powerState(),
 			},
 		},
-		"term": resourceschema.Int64Attribute{
+	"term": resourceschema.Int64Attribute{
 			Optional:    true,
-			Computed:    true,
-			Description: "Billing term (pricing_id of the desired term, e.g. 56=daily, 57=weekly, 58=monthly). Changing this triggers a term change. Use `shc info <service_id>` or GET /vm/{id}/term-options to see available terms.",
+			Description: "Billing term (pricing_id of the desired term, e.g. 56=daily, 57=weekly, 58=monthly). Changing this triggers a term change. Use `shc info <service_id>` or GET /vm/{id}/term-options to see available terms. If unset, the API default (monthly) is used.",
 		},
-		"nodns": resourceschema.BoolAttribute{
-			Optional:    true,
-			Description: "If true, auto-publishes a NoDNS record (kind 11111 Nostr event) pointing to this VM's IP. Requires python3 + shc-toolkit on the runner.",
-		},
-		"nodns_zone": resourceschema.StringAttribute{
-			Optional:    true,
-			Description: "NoDNS zone: `nodns.shop` (default) or `dns4sats.xyz`.",
-		},
-			"ip": resourceschema.StringAttribute{
+		"ip": resourceschema.StringAttribute{
 				Computed:    true,
 				Description: "The primary IP address of the VPS.",
 			},
@@ -186,19 +188,10 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				Computed:    true,
 				Description: "The current service status of the VPS.",
 			},
-			"provisioning_state": resourceschema.StringAttribute{
-				Computed:    true,
-				Description: "The provisioning state of the VPS (e.g. ready, provisioning).",
-			},
-			"fqdn": resourceschema.StringAttribute{
-				Computed:    true,
-				Description: "NoDNS FQDN assigned to the VM (e.g. npub1abc.nodns.shop). Only set when nodns is enabled.",
-			},
-			"nodns_nsec": resourceschema.StringAttribute{
-				Computed:    true,
-				Sensitive:   true,
-				Description: "Nostr secret key (nsec) for the NoDNS record. Store this securely; it is needed to update the record later.",
-			},
+		"provisioning_state": resourceschema.StringAttribute{
+			Computed:    true,
+			Description: "The provisioning state of the VPS (e.g. ready, provisioning).",
+		},
 		},
 		Blocks: map[string]resourceschema.Block{
 			"timeouts": resourceschema.SingleNestedBlock{
@@ -379,24 +372,6 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 		}
 	}
 
-	if plan.Nodns.ValueBool() {
-		ip := vm.GetIP()
-		zone := plan.NodnsZone.ValueString()
-		if zone == "" {
-			zone = "nodns.shop"
-		}
-		fqdn, nsec, err := publishNoDNS(ctx, ip, zone)
-		if err != nil {
-			resp.Diagnostics.AddWarning(
-				"NoDNS publish failed",
-				fmt.Sprintf("Could not publish NoDNS record for VM %s: %s. The VM is running; publish the record manually with 'shc nodns --ip %s'.", serviceID, err, ip),
-			)
-		} else {
-			plan.Fqdn = types.StringValue(fqdn)
-			plan.NodnsNsec = types.StringValue(nsec)
-		}
-	}
-
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 }
@@ -425,7 +400,7 @@ func (r *vmResource) waitForProvisioning(ctx context.Context, serviceID string, 
 
 		if err == nil {
 			lastVM = vm
-			if vm.ProvisioningState == "ready" {
+			if vm.ProvisioningState == "ready" || (vm.Status == "active" && vm.GetIP() != "") {
 				return vm, nil
 			}
 		}
@@ -441,45 +416,15 @@ func (r *vmResource) waitForProvisioning(ctx context.Context, serviceID string, 
 	if lastVM != nil {
 		diags.AddError(
 			"VM provisioning timeout",
-			fmt.Sprintf("VM %s did not reach 'ready' state after %d attempts. Last state: %s", serviceID, maxAttempts, lastVM.ProvisioningState),
+			fmt.Sprintf("VM %s did not reach active+IP state after %d attempts. Last: status=%s, provisioning_state=%s", serviceID, maxAttempts, lastVM.Status, lastVM.ProvisioningState),
 		)
 	} else {
 		diags.AddError(
 			"VM provisioning timeout",
-			fmt.Sprintf("VM %s did not reach 'ready' state after %d attempts. VM was not yet available.", serviceID, maxAttempts),
+			fmt.Sprintf("VM %s did not reach active+IP state after %d attempts. VM was not yet available.", serviceID, maxAttempts),
 		)
 	}
 	return nil, diags
-}
-
-// publishNoDNS shells out to the Python shc-toolkit to publish a kind 11111
-// Nostr DNS event. Requires python3 + shc-toolkit (+ nostr-sdk) on the runner.
-func publishNoDNS(ctx context.Context, ip, zone string) (fqdn, nsec string, err error) {
-	script := fmt.Sprintf(`import json, sys
-from shc_toolkit.nodns import provision_dns_for_vm
-result = provision_dns_for_vm(ip=%q, zone=%q, wait_seconds=5)
-json.dump({"fqdn": result.get("fqdn", ""), "nsec": result.get("keypair", {}).get("nsec", "")}, sys.stdout)
-`, ip, zone)
-
-	cmd := exec.CommandContext(ctx, "python3", "-c", script)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	output, err := cmd.Output()
-	if err != nil {
-		return "", "", fmt.Errorf("python3 shc-toolkit call failed: %w: %s", err, stderr.String())
-	}
-
-	var result struct {
-		Fqdn string `json:"fqdn"`
-		Nsec string `json:"nsec"`
-	}
-	if err := json.Unmarshal(output, &result); err != nil {
-		return "", "", fmt.Errorf("failed to parse NoDNS JSON output: %w", err)
-	}
-	if result.Fqdn == "" {
-		return "", "", fmt.Errorf("NoDNS publish returned empty FQDN")
-	}
-	return result.Fqdn, result.Nsec, nil
 }
 
 func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -512,9 +457,6 @@ func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 	state.ProvisioningState = types.StringValue(vm.ProvisioningState)
 	state.Hostname = types.StringValue(vm.Hostname)
 	state.OSUser = types.StringValue(vm.OSUser)
-
-	// fqdn and nodns_nsec are stored in state from creation; they are not
-	// re-fetched from the SHC API (which has no knowledge of NoDNS records).
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -604,8 +546,6 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 	plan.OSUser = state.OSUser
 	plan.Status = state.Status
 	plan.ProvisioningState = state.ProvisioningState
-	plan.Fqdn = state.Fqdn
-	plan.NodnsNsec = state.NodnsNsec
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

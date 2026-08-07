@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
@@ -73,4 +74,74 @@ func (v powerStateValidator) ValidateString(_ context.Context, req validator.Str
 // powerState returns a validator that ensures the string is "running" or "stopped".
 func powerState() powerStateValidator {
 	return powerStateValidator{}
+}
+
+// ---------------------------------------------------------------------------
+// Hostname validator (RFC 1123): regex is inherently opaque, so documented.
+// ---------------------------------------------------------------------------
+
+// hostnameRegex: 1-63 chars, lowercase alphanumeric + hyphens, must start/end alphanumeric.
+var hostnameRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+
+type hostnameValidator struct{}
+
+func (v hostnameValidator) Description(_ context.Context) string {
+	return "value must be a valid hostname: 1-63 chars, lowercase alphanumeric and hyphens, starting and ending with alphanumeric"
+}
+
+func (v hostnameValidator) MarkdownDescription(_ context.Context) string {
+	return v.Description(context.Background())
+}
+
+func (v hostnameValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	val := req.ConfigValue.ValueString()
+	if !hostnameRegex.MatchString(val) {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Hostname",
+			fmt.Sprintf("Expected a valid hostname (1-63 chars, lowercase alphanumeric and hyphens, starting and ending with alphanumeric), got: %q", val),
+		)
+	}
+}
+
+func hostname() hostnameValidator {
+	return hostnameValidator{}
+}
+
+// ---------------------------------------------------------------------------
+// Size validator: regex documents the accepted {line}-{cpu}c-{ram}gb pattern.
+// ---------------------------------------------------------------------------
+
+// sizeRegex: matches nvme-2c-8gb, dev-4c-16gb, ssd-1c-4gb, hdd-1c-2gb, etc.
+var sizeRegex = regexp.MustCompile(`^(nvme|ssd|hdd|dev)-[1-9][0-9]*c-[1-9][0-9]*gb$`)
+
+type sizeValidator struct{}
+
+func (v sizeValidator) Description(_ context.Context) string {
+	return "value must be a valid size name: {line}-{cpu}c-{ram}gb (e.g. nvme-2c-8gb, dev-4c-16gb)"
+}
+
+func (v sizeValidator) MarkdownDescription(_ context.Context) string {
+	return v.Description(context.Background())
+}
+
+func (v sizeValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	val := req.ConfigValue.ValueString()
+	if !sizeRegex.MatchString(val) {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Size",
+			fmt.Sprintf("Expected a size name in the format {line}-{cpu}c-{ram}gb (e.g. nvme-2c-8gb, dev-4c-16gb, ssd-1c-4gb), got: %q", val),
+		)
+	}
+}
+
+func sizeValidatorFn() sizeValidator {
+	return sizeValidator{}
 }

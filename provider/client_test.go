@@ -16,6 +16,16 @@ func TestSubmitOrder(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer test-key" {
 			t.Errorf("expected auth header 'Bearer test-key', got %q", r.Header.Get("Authorization"))
 		}
+		if r.URL.Path == "/ordering/catalog" && r.Method == http.MethodGet {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{
+					"items": []map[string]interface{}{
+						{"package_id": "81", "order_form_id": "11"},
+					},
+				},
+			})
+			return
+		}
 		if r.URL.Path != "/ordering/submit" {
 			t.Errorf("expected path /ordering/submit, got %s", r.URL.Path)
 		}
@@ -45,7 +55,18 @@ func TestSubmitOrder_ConfirmationFlow(t *testing.T) {
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
-		if callCount == 1 {
+		if r.URL.Path == "/ordering/catalog" && r.Method == http.MethodGet {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{
+					"items": []map[string]interface{}{
+						{"package_id": "81", "order_form_id": "11"},
+					},
+				},
+			})
+			return
+		}
+		// POST /ordering/submit without confirm → 409
+		if r.URL.Path == "/ordering/submit" && r.Header.Get("X-User-Api-Confirm") == "" {
 			w.WriteHeader(http.StatusConflict)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"confirmation": map[string]interface{}{
@@ -75,8 +96,9 @@ func TestSubmitOrder_ConfirmationFlow(t *testing.T) {
 	if order.ResolveServiceID() != "456" {
 		t.Errorf("expected service_id 456, got %s", order.ResolveServiceID())
 	}
-	if callCount != 2 {
-		t.Errorf("expected 2 calls, got %d", callCount)
+	// 3 calls: catalog GET + initial POST (409) + confirmation POST
+	if callCount != 3 {
+		t.Errorf("expected 3 calls, got %d", callCount)
 	}
 }
 

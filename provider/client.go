@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"strings"
@@ -24,6 +25,21 @@ const (
 	lockRetryDelay  = 5 * time.Second
 	lockMaxRetries  = 3
 )
+
+// HTTP retry constants for transient failures (429 Too Many Requests, 503
+// Service Unavailable). These status codes indicate the server has NOT
+// processed the request, so retrying is safe for all HTTP methods including
+// POST. Exponential backoff with ±20% jitter matches the Python client.
+const (
+	httpRetryBase  = 1 * time.Second
+	httpRetryMax   = 30 * time.Second
+	httpMaxRetries = 3
+)
+
+func isRetryableStatus(statusCode int) bool {
+	return statusCode == http.StatusTooManyRequests ||
+		statusCode == http.StatusServiceUnavailable
+}
 
 func isVMLockedErr(err error) bool {
 	if err == nil {
@@ -76,10 +92,11 @@ func retryOnLockValue[T any](ctx context.Context, fn func() (T, error)) (T, erro
 }
 
 type SHCClient struct {
-	baseURL     string
-	apiKey      string
-	httpClient  *http.Client
-	costTracker *CostTracker
+	baseURL              string
+	apiKey               string
+	httpClient           *http.Client
+	costTracker          *CostTracker
+	orderIdempotencyKey  string
 }
 
 func NewSHCClient(apiKey, endpoint string) *SHCClient {
@@ -117,7 +134,47 @@ func unwrapData(raw []byte) []byte {
 	return raw
 }
 
+// doRequest executes an HTTP request with automatic retry on transient
+// failures (429 Too Many Requests, 503 Service Unavailable). These status
+// codes indicate the server has not processed the request, so retrying is
+// safe for all methods including POST. Exponential backoff with ±20% jitter
+// matches the Python SHCClient's retry behavior.
 func (c *SHCClient) doRequest(ctx context.Context, method, path string, body []byte, confirmID string) (int, []byte, error) {
+	var statusCode int
+	var respBody []byte
+
+	for attempt := 0; ; attempt++ {
+		var err error
+		statusCode, respBody, err = c.doRequestOnce(ctx, method, path, body, confirmID)
+		if err != nil {
+			return statusCode, respBody, err
+		}
+
+		if !isRetryableStatus(statusCode) || attempt >= httpMaxRetries {
+			return statusCode, respBody, nil
+		}
+
+		// Exponential backoff: 1s, 2s, 4s — capped at httpRetryMax, with ±20% jitter.
+		delay := httpRetryBase * time.Duration(1<<attempt)
+		if delay > httpRetryMax {
+			delay = httpRetryMax
+		}
+		jitterRange := delay / 5 // 20% of delay
+		delay = delay - jitterRange/2 + time.Duration(rand.Int64N(int64(jitterRange)))
+
+		select {
+		case <-ctx.Done():
+			return statusCode, respBody, fmt.Errorf(
+				"context cancelled during HTTP %d retry on %s %s: %w",
+				statusCode, method, path, ctx.Err(),
+			)
+		case <-time.After(delay):
+		}
+	}
+}
+
+// doRequestOnce executes a single HTTP request without retry. Called by doRequest.
+func (c *SHCClient) doRequestOnce(ctx context.Context, method, path string, body []byte, confirmID string) (int, []byte, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		bodyReader = bytes.NewReader(body)
@@ -134,6 +191,9 @@ func (c *SHCClient) doRequest(ctx context.Context, method, path string, body []b
 	req.Header.Set("Accept", "application/json")
 	if confirmID != "" {
 		req.Header.Set("X-User-Api-Confirm", confirmID)
+	}
+	if method == http.MethodPost && path == "/ordering/submit" && c.orderIdempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", c.orderIdempotencyKey)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -175,12 +235,50 @@ func (c *SHCClient) handleConfirmation(ctx context.Context, method, path string,
 	return respBody, nil
 }
 
+func (c *SHCClient) resolveOrderFormID(ctx context.Context, packageID int64) (int64, error) {
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/ordering/catalog", nil, "")
+	if err != nil {
+		return 0, fmt.Errorf("fetching catalog for order_form_id: %w", err)
+	}
+	if statusCode >= 400 {
+		return 0, fmt.Errorf("catalog fetch failed (status %d)", statusCode)
+	}
+
+	var catalogResp struct {
+		Items []struct {
+			PackageID   flexibleString `json:"package_id"`
+			OrderFormID flexibleString `json:"order_form_id"`
+		} `json:"items"`
+	}
+
+	unwrapped := unwrapData(respBody)
+	if err := json.Unmarshal(unwrapped, &catalogResp); err != nil {
+		return 0, fmt.Errorf("parsing catalog for order_form_id: %w", err)
+	}
+
+	for _, item := range catalogResp.Items {
+		if item.PackageID.Int64() == packageID {
+			return item.OrderFormID.Int64(), nil
+		}
+	}
+
+	return 0, fmt.Errorf("package_id %d not found in catalog", packageID)
+}
+
 func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID, pricingID int64, configOptions map[string]string) (*OrderResponse, error) {
+	c.orderIdempotencyKey = fmt.Sprintf("order-%d-%d", time.Now().UnixNano(), rand.Int64())
+	defer func() { c.orderIdempotencyKey = "" }()
+
+	orderFormID, err := c.resolveOrderFormID(ctx, packageID)
+	if err != nil {
+		return nil, fmt.Errorf("resolving order_form_id for package %d: %w", packageID, err)
+	}
+
 	orderReq := OrderRequest{
 		Hostname:      hostname,
 		PackageID:     packageID,
 		PricingID:     pricingID,
-		OrderFormID:   11,
+		OrderFormID:   orderFormID,
 		ConfigOptions: configOptions,
 	}
 
@@ -203,10 +301,26 @@ func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID,
 		return nil, fmt.Errorf("order submission failed (status %d): %s", statusCode, string(respBody))
 	}
 
-	var orderResp OrderResponse
+	var fullResp struct {
+		ServiceIDs []flexibleString `json:"service_ids"`
+		ServiceID  flexibleString   `json:"service_id"`
+		ID         flexibleString   `json:"id"`
+		Invoice    struct {
+			InvoiceID flexibleString `json:"invoice_id"`
+		} `json:"invoice"`
+		Next struct {
+			PaymentRequired bool `json:"payment_required"`
+		} `json:"next"`
+	}
 	unwrapped := unwrapData(respBody)
-	if err := json.Unmarshal(unwrapped, &orderResp); err != nil {
+	if err := json.Unmarshal(unwrapped, &fullResp); err != nil {
 		return nil, fmt.Errorf("parsing order response: %w (body: %s)", err, string(respBody))
+	}
+
+	orderResp := OrderResponse{
+		ServiceIDs: fullResp.ServiceIDs,
+		ServiceID:  fullResp.ServiceID,
+		ID:         fullResp.ID,
 	}
 
 	if orderResp.ResolveServiceID() == "" {

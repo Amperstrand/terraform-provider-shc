@@ -52,7 +52,6 @@ terraform apply
 - In-place upgrade: change `size` or `package_id`/`pricing_id` to upgrade without recreate
 - Power management: start/stop a VM with `power_state = "stopped"`
 - **Billing term management**: change `term` to switch billing period (v2.4.6)
-- NoDNS: auto-publish a `.nodns.shop` or `.dns4sats.xyz` hostname via Nostr
 - Firewall: manage per-VM firewall rules (`shc_firewall_rule`)
 - Reverse DNS: manage PTR records (`shc_rdns`)
 - Snapshots and backups: create, read, restore, and delete
@@ -60,6 +59,8 @@ terraform apply
 - Confirmation flow handling: automatically resolves SHC order confirmation requests
 - Auto-cancel: optionally schedule end-of-term cancellation so VPS do not auto-renew
 - Credit safety: pre-checks account credit before ordering to prevent surprise billing
+- HTTP retry: automatic retry on 429/503 with exponential backoff + jitter
+- Input validation: hostname (RFC 1123), size format, positive-integer on CPU/RAM/disk
 - Data sources: browse the catalog, templates, and machine types
 - Import: bring existing VMs under Terraform management
 - Schema versioning: `SchemaVersion: 1` with state upgrader for future breaking changes
@@ -129,9 +130,7 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | `ssh_key`     | string | no       | SSH public key to apply after provisioning. |
 | `auto_cancel` | bool   | no       | If `true` (default), schedules end-of-term cancellation so the VPS does not auto-renew. |
 | `power_state` | string | no       | Desired power state: `running` (default) or `stopped`. Changing this triggers a start/stop without replacing the VM. |
-| `term`        | number | no       | Billing term (pricing_id of the desired term, e.g. 56=daily, 58=monthly). Changing this triggers a term change. Use `shc info <service_id>` or GET /vm/{id}/term-options to see available terms. |
-| `nodns`       | bool   | no       | If `true`, auto-publishes a NoDNS record pointing to the VM's IP after provisioning. Requires `python3` + `shc-toolkit` on the runner. |
-| `nodns_zone`  | string | no       | NoDNS zone: `nodns.shop` (default) or `dns4sats.xyz`. Only used when `nodns = true`. |
+| `term`        | number | no       | Billing term (pricing_id of the desired term, e.g. 56=daily, 58=monthly). If unset, the API default (monthly) is used. |
 
 | Attribute            | Type   | Computed | Description |
 |----------------------|--------|----------|-------------|
@@ -140,8 +139,6 @@ Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submit
 | `os_user`            | string | yes      | The default OS user for SSH login (typically `debian`). |
 | `status`             | string | yes      | The current service status. |
 | `provisioning_state` | string | yes      | The provisioning state (`ready`, `provisioning`, etc.). |
-| `fqdn`               | string | yes      | NoDNS FQDN assigned to the VM (e.g. `npub1abc.nodns.shop`). Only set when `nodns = true`. |
-| `nodns_nsec`         | string | yes      | Nostr secret key (nsec) for the NoDNS record. **Sensitive.** Store securely; needed to update the record later. |
 
 #### Size abstraction (recommended)
 
@@ -166,34 +163,6 @@ Only upgrades (more CPU/RAM/disk) are supported. Disk-reducing changes are rejec
 resource "shc_vm" "web" {
   hostname = "web-server"
   size     = "nvme-4c-16gb"  # was "nvme-2c-8gb"
-}
-```
-
-#### NoDNS hostname
-
-Set `nodns = true` to automatically get a `.nodns.shop` (or `.dns4sats.xyz`) domain pointing to the VM's IP. The provider publishes a kind 11111 Nostr event via the Python `shc-toolkit`. The resulting FQDN and nsec secret key are exposed as outputs.
-
-Requires `python3` and `shc-toolkit` (with `nostr-sdk`) on the Terraform runner:
-
-```sh
-pip install shc-toolkit[nostr]
-```
-
-```hcl
-resource "shc_vm" "web" {
-  hostname   = "web-server"
-  size       = "nvme-2c-8gb"
-  nodns      = true
-  nodns_zone = "dns4sats.xyz"
-}
-
-output "vm_fqdn" {
-  value = shc_vm.web.fqdn
-}
-
-output "vm_nsec" {
-  value     = shc_vm.web.nodns_nsec
-  sensitive = true
 }
 ```
 
@@ -358,7 +327,14 @@ data "shc_vm" "existing" {
 
 ## Known Limitations
 
-- **Snapshot/backup limit**: All VPS plans (including Dev VPS) support 1 snapshot and 1 backup concurrently. Verified working on Dev VPS via front-door E2E (2026-07-01).
+- **Dev zone (Cherryvale, KS) provisioning**: Dev VPS plans (pkg 80–84) may experience provisioning delays or failures. This is an SHC platform issue, not a provider bug. NVMe/SSD/HDD plans in Katy-TX are unaffected. Track via [issue #28](https://github.com/Amperstrand/shc-toolkit/issues/28).
+- **debian13-cloud template**: The `debian13-cloud` template's cloud-init may deadlock (sshd never starts). Use `debian12-cloud` or `ubuntu2404-cloud` instead. See [issue #24](https://github.com/Amperstrand/shc-toolkit/issues/24).
+- **Snapshot/backup limit**: All VPS plans (including Dev VPS) support 1 snapshot and 1 backup concurrently.
+- **Provisioning state**: SHC VMs may report `provisioning_state: "provisioning"` indefinitely even when fully operational. The provider detects readiness via `service_status == "active" && ip assigned`.
+
+## Distribution
+
+This provider is distributed via GitHub Releases with pre-compiled binaries for Linux and macOS (amd64/arm64). Terraform Registry submission is under consideration for a future release — see the [v0.2.0 release notes](https://github.com/Amperstrand/terraform-provider-shc/releases) for download URLs and SHA256 checksums.
 
 ## Development
 

@@ -32,7 +32,7 @@ func TestAccVMResource_Basic(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
 					resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
-					resource.TestCheckResourceAttr("shc_vm.test", "provisioning_state", "ready"),
+					resource.TestCheckResourceAttr("shc_vm.test", "status", "active"),
 				),
 			},
 		},
@@ -49,7 +49,7 @@ func TestAccVMResource_WithSize(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
 					resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
-					resource.TestCheckResourceAttr("shc_vm.test", "provisioning_state", "ready"),
+					resource.TestCheckResourceAttr("shc_vm.test", "status", "active"),
 				),
 			},
 		},
@@ -66,7 +66,7 @@ func TestAccVMResource_WithTemplate(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
 					resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
-					resource.TestCheckResourceAttr("shc_vm.test", "provisioning_state", "ready"),
+					resource.TestCheckResourceAttr("shc_vm.test", "status", "active"),
 				),
 			},
 		},
@@ -104,8 +104,8 @@ provider "shc" {
 
 resource "shc_vm" "test" {
   hostname    = "%s"
-  package_id  = 81
-  pricing_id  = 245
+  size        = "nvme-1c-4gb"
+  template    = "debian12-cloud"
   auto_cancel = true
 }
 `, os.Getenv("SHC_API_KEY"), hostname)
