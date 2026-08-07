@@ -1,36 +1,29 @@
 {
   "date": "2026-08-07",
+  "methodology": "dd (CPU+disk), curl multi-target (network). No package installation. Cache dropped before disk read. 1 run per plan.",
   "results": [
-    {
-      "size": "nvme-2c-8gb",
-      "label": "NVMe Standard (Katy-TX)",
-      "status": "ok",
-      "ready_after_seconds": 43,
-      "ip": "23.182.128.217",
-      "benchmarks": {
-        "cpu_dd_throughput": "21.0 GB/s",
-        "disk_write_mb_s": 53.4,
-        "disk_read_mb_s": 4.8,
-        "network_mbits": 4.5
-      }
-    },
-    {
-      "size": "ssd-1c-4gb",
-      "label": "SSD Starter (Cherryvale-KS)",
-      "status": "provisioning_timeout",
-      "ready_after_seconds": 386
-    },
     {
       "size": "nvme-1c-4gb",
       "label": "NVMe Starter (Katy-TX)",
       "status": "ok",
-      "ready_after_seconds": 97,
+      "ready_after_seconds": 53,
       "ip": "23.182.128.217",
       "benchmarks": {
-        "cpu_dd_gb_s": 22.9,
-        "disk_write_mb_s": 57.3,
-        "disk_read_mb_s": 7.3,
-        "network_mbits": 3.9
+        "error": "Error reading SSH protocol banner[Errno 54] Connection reset by peer"
+      }
+    },
+    {
+      "size": "nvme-2c-8gb",
+      "label": "NVMe Standard (Katy-TX)",
+      "status": "ok",
+      "ready_after_seconds": 86,
+      "ip": "23.182.128.217",
+      "benchmarks": {
+        "cpu_dd_gb_s": 20.0,
+        "disk_write_mb_s": 46.6,
+        "disk_read_mb_s": 409.0,
+        "network_mbits": 4.6,
+        "network_targets_tested": 2
       }
     }
   ]
