@@ -30,6 +30,7 @@ type snapshotResource struct {
 }
 
 type snapshotResourceModel struct {
+	ID         types.String `tfsdk:"id"`
 	ServiceID  types.String `tfsdk:"service_id"`
 	Name       types.String `tfsdk:"name"`
 	Restore    types.Bool   `tfsdk:"restore"`
@@ -49,6 +50,13 @@ func (r *snapshotResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 	resp.Schema = resourceschema.Schema{
 		Description: "Manages a snapshot of an SHC VPS.",
 		Attributes: map[string]resourceschema.Attribute{
+			"id": resourceschema.StringAttribute{
+				Computed:    true,
+				Description: "The snapshot ID.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"service_id": resourceschema.StringAttribute{
 				Required:    true,
 				Description: "The SHC service ID of the VPS to snapshot.",
@@ -127,6 +135,7 @@ func (r *snapshotResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	plan.SnapshotID = types.StringValue(snapResp.ID.String())
+	plan.ID = types.StringValue(snapResp.ID.String())
 	if snapResp.Name != "" {
 		plan.Name = types.StringValue(snapResp.Name)
 	}
@@ -212,6 +221,7 @@ func (r *snapshotResource) Update(ctx context.Context, req resource.UpdateReques
 
 	// Carry forward computed fields from state.
 	plan.SnapshotID = state.SnapshotID
+	plan.ID = state.SnapshotID
 	plan.Status = state.Status
 
 	diags = resp.State.Set(ctx, plan)

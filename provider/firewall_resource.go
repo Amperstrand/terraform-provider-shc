@@ -21,6 +21,7 @@ type firewallRuleResource struct {
 }
 
 type firewallRuleResourceModel struct {
+	ID        types.String `tfsdk:"id"`
 	ServiceID types.String `tfsdk:"service_id"`
 	Action    types.String `tfsdk:"action"`
 	Protocol  types.String `tfsdk:"protocol"`
@@ -43,6 +44,13 @@ func (r *firewallRuleResource) Schema(_ context.Context, _ resource.SchemaReques
 	resp.Schema = resourceschema.Schema{
 		Description: "Manages a firewall rule on an SHC VPS instance.",
 		Attributes: map[string]resourceschema.Attribute{
+			"id": resourceschema.StringAttribute{
+				Computed:    true,
+				Description: "The rule identifier (service_id:position).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"service_id": resourceschema.StringAttribute{
 				Required:    true,
 				Description: "The SHC service ID of the VPS.",
@@ -163,6 +171,7 @@ func (r *firewallRuleResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	plan.Position = types.Int64Value(int64(ruleResp.Position.Int64()))
+	plan.ID = types.StringValue(fmt.Sprintf("%s:%d", plan.ServiceID.ValueString(), plan.Position.ValueInt64()))
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -202,6 +211,7 @@ func (r *firewallRuleResource) Read(ctx context.Context, req resource.ReadReques
 			state.Source = types.StringValue(rule.Source)
 			state.Direction = types.StringValue(rule.Direction)
 			state.Name = types.StringValue(rule.Name)
+			state.ID = types.StringValue(fmt.Sprintf("%s:%d", state.ServiceID.ValueString(), targetPos))
 			break
 		}
 	}

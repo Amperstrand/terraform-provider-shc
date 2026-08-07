@@ -56,6 +56,7 @@ func (r *vmResource) UpgradeState(ctx context.Context) map[int64]resource.StateU
 }
 
 type vmResourceModel struct {
+	ID                types.String `tfsdk:"id"`
 	Hostname          types.String `tfsdk:"hostname"`
 	Size              types.String `tfsdk:"size"`
 	PackageID         types.Int64  `tfsdk:"package_id"`
@@ -88,6 +89,13 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 	resp.Schema = resourceschema.Schema{
 		Description: "Manages a Sovereign Hybrid Compute VPS instance.",
 		Attributes: map[string]resourceschema.Attribute{
+		"id": resourceschema.StringAttribute{
+			Computed:    true,
+			Description: "The SHC service ID. Equal to service_id.",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
+		},
 		"hostname": resourceschema.StringAttribute{
 			Required:    true,
 			Description: "The hostname for the VPS instance.",
@@ -235,7 +243,8 @@ func (r *vmResource) Configure(_ context.Context, req resource.ConfigureRequest,
 }
 
 func (r *vmResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("service_id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), req.ID)...)
 }
 
 func parseTimeoutDuration(ctx context.Context, obj types.Object, key string, def time.Duration) time.Duration {
@@ -352,6 +361,7 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	}
 
 	plan.ServiceID = types.StringValue(serviceID)
+	plan.ID = types.StringValue(serviceID)
 	plan.IP = types.StringValue(vm.GetIP())
 	plan.Status = types.StringValue(vm.Status)
 	plan.ProvisioningState = types.StringValue(vm.ProvisioningState)
@@ -468,6 +478,7 @@ func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 	state.ProvisioningState = types.StringValue(vm.ProvisioningState)
 	state.Hostname = types.StringValue(vm.Hostname)
 	state.OSUser = types.StringValue(vm.OSUser)
+	state.ID = state.ServiceID
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -554,6 +565,7 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 	}
 
 	plan.ServiceID = state.ServiceID
+	plan.ID = state.ServiceID
 	plan.IP = state.IP
 	plan.OSUser = state.OSUser
 	plan.Status = state.Status
