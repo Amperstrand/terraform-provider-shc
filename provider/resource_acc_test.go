@@ -164,6 +164,29 @@ resource "shc_rdns" "test" {
 `, os.Getenv("SHC_API_KEY"), hostname, hostname)
 }
 
+func testAccFirewallBlockConfig(hostname string) string {
+	return fmt.Sprintf(`
+provider "shc" { api_key = "%s" }
+
+resource "shc_vm" "test" {
+  hostname    = "%s"
+  size        = "nvme-1c-4gb"
+  template    = "debian12-cloud"
+  auto_cancel = true
+}
+
+resource "shc_firewall_rule" "block_ssh" {
+  service_id = shc_vm.test.service_id
+  action     = "drop"
+  protocol   = "tcp"
+  port       = "22"
+  source     = "0.0.0.0/0"
+  direction  = "in"
+  name       = "block-ssh"
+}
+`, os.Getenv("SHC_API_KEY"), hostname)
+}
+
 func testAccCheckPortReachable(resourceName, port string, expectOpen bool) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[resourceName]
@@ -212,4 +235,59 @@ func TestAccFirewallRule_PortAccessible(t *testing.T) {
 			),
 		}},
 	})
+}
+
+func TestAccFirewallRule_BlockedPort(t *testing.T) {
+	hostname := "tf-acc-test-fwblock-" + acctest.RandString(8)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckVMDestroy,
+		Steps: []resource.TestStep{{
+			Config: testAccFirewallBlockConfig(hostname),
+			Check: resource.ComposeTestCheckFunc(
+				resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
+				testAccCheckPortReachable("shc_vm.test", "22", false),
+			),
+		}},
+	})
+}
+
+func TestAccVM_Disappears(t *testing.T) {
+	hostname := "tf-acc-test-vm-dis-" + acctest.RandString(8)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckVMDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccVMResourceConfig(hostname),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
+					testAccDeleteVMExternally("shc_vm.test"),
+				),
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config: testAccVMResourceConfig(hostname),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
+				),
+			},
+		},
+	})
+}
+
+func testAccDeleteVMExternally(resourceName string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("resource not found: %s", resourceName)
+		}
+		serviceID := rs.Primary.Attributes["service_id"]
+		client := NewSHCClient(os.Getenv("SHC_API_KEY"), "")
+		return client.CancelVM(context.Background(), serviceID, true)
+	}
 }

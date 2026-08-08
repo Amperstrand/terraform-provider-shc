@@ -190,7 +190,7 @@ resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "%s"
   template    = "debian12-cloud"
-  auto_cancel = true
+  auto_cancel = false
 }
 `, os.Getenv("SHC_API_KEY"), hostname, size)
 }
