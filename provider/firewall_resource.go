@@ -205,12 +205,24 @@ func (r *firewallRuleResource) Read(ctx context.Context, req resource.ReadReques
 	for _, rule := range fw.Rules {
 		if rule.Position.Int64() == targetPos {
 			found = true
-			state.Action = types.StringValue(strings.ToLower(rule.Action))
-			state.Protocol = types.StringValue(strings.ToLower(rule.Protocol))
-			state.Port = types.StringValue(rule.Port)
-			state.Source = types.StringValue(rule.Source)
-			state.Direction = types.StringValue(rule.Direction)
-			state.Name = types.StringValue(rule.Name)
+			if v := strings.ToLower(rule.Action); v != "" {
+				state.Action = types.StringValue(v)
+			}
+			if v := strings.ToLower(rule.Protocol); v != "" {
+				state.Protocol = types.StringValue(v)
+			}
+			if rule.Port != "" {
+				state.Port = types.StringValue(rule.Port)
+			}
+			if rule.Source != "" {
+				state.Source = types.StringValue(rule.Source)
+			}
+			if v := strings.ToLower(rule.Direction); v != "" {
+				state.Direction = types.StringValue(v)
+			}
+			if rule.Name != "" {
+				state.Name = types.StringValue(rule.Name)
+			}
 			state.ID = types.StringValue(fmt.Sprintf("%s:%d", state.ServiceID.ValueString(), targetPos))
 			break
 		}
