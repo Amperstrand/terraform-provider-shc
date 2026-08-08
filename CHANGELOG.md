@@ -7,6 +7,35 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- `id` computed attribute on VM, Snapshot, Firewall resources (enables import)
+- UseStateForUnknown plan modifiers on VM computed attributes (ip, service_id, os_user)
+- Structured error diagnostics (`provider/errors.go`) — parses SHC API JSON errors into summary + field-level detail
+- go-retryablehttp transport (replaces custom retry loop, industry standard)
+- tflog structured logging on ALL resources (snapshot, firewall, rdns, backup + VM)
+- Data source acceptance tests: catalog, templates, VM data source
+- Acceptance tests: PowerState (stop/start), Template (ubuntu2404), EdgeCases (negative CPU/RAM/disk)
+- External firewall port verification: TCP-connect to verify rules work (open AND blocked)
+- VM Disappears test: external deletion detection via API
+- Benchmark results with sysbench CPU + fio 4K random/sequential disk
+- Benchmark methodology disclaimer with reproduction steps
+- Acceptance test sweepers for VM cleanup
+- CheckDestroy functions for VM, Snapshot, Firewall
+- `.gitignore` for security/fuzz test patterns
+
+### Fixed
+- Snapshot delete: poll GetSnapshots for real ID after async creation (was sending empty ID)
+- Firewall position drift: UseStateForUnknown replaces RequiresReplace
+- Firewall dest_port JSON tag (was "port", API returns "dest_port")
+- Firewall Read: preserve state when API returns empty fields
+- UpgradeVM: retry entire confirmation+upgrade flow on service_not_active
+- UpgradeVM: auto_cancel=false in test prevents SHC API from cancelling VM during retry
+- VM Import: set service_id from import ID (was only setting custom id attr)
+
+### Changed
+- go-retryablehttp replaces manual retry loop in doRequest
+- All resource Read methods normalize API action/protocol to lowercase
+
 ## [0.2.0] — 2026-08-07
 
 ### Added

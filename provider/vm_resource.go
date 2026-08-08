@@ -181,17 +181,26 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			Optional:    true,
 			Description: "Billing term (pricing_id of the desired term, e.g. 56=daily, 57=weekly, 58=monthly). Changing this triggers a term change. Use `shc info <service_id>` or GET /vm/{id}/term-options to see available terms. If unset, the API default (monthly) is used.",
 		},
-		"ip": resourceschema.StringAttribute{
+			"ip": resourceschema.StringAttribute{
 				Computed:    true,
 				Description: "The primary IP address of the VPS.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"service_id": resourceschema.StringAttribute{
 				Computed:    true,
 				Description: "The SHC service ID for the VPS.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"os_user": resourceschema.StringAttribute{
 				Computed:    true,
 				Description: "The default OS user for SSH login.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"status": resourceschema.StringAttribute{
 				Computed:    true,
