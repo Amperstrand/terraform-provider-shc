@@ -51,12 +51,19 @@ func (r *rdnsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				},
 			},
 			"hostname": resourceschema.StringAttribute{
-				Required:    true,
+				Optional:    true,
+				Computed:    true,
 				Description: "The FQDN to set as the PTR record.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"job_id": resourceschema.StringAttribute{
 				Computed:    true,
 				Description: "The async job ID for the rDNS operation.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -133,7 +140,9 @@ func (r *rdnsResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	for _, rec := range records {
 		if rec.IP == targetIP {
 			found = true
-			state.Hostname = types.StringValue(rec.Hostname)
+			if rec.Hostname != "" {
+				state.Hostname = types.StringValue(rec.Hostname)
+			}
 			break
 		}
 	}

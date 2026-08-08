@@ -51,7 +51,6 @@ func TestAccFirewallRuleResource_Basic(t *testing.T) {
 }
 
 func TestAccRDNSResource_Basic(t *testing.T) {
-	t.Skip("RDNS requires FCrDNS — hostname must resolve to VM IP. Cannot satisfy in test env without real DNS.")
 	hostname := "tf-acc-test-rdns-" + acctest.RandString(8)
 
 	resource.Test(t, resource.TestCase{
@@ -59,7 +58,7 @@ func TestAccRDNSResource_Basic(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		CheckDestroy:             testAccCheckVMDestroy,
 		Steps: []resource.TestStep{{
-			Config: testAccRDNSConfig(hostname),
+			Config: testAccRDNSConfigWithNipIO(hostname),
 			Check: resource.ComposeTestCheckFunc(
 				resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
 				resource.TestCheckResourceAttrSet("shc_rdns.test", "job_id"),
@@ -145,25 +144,6 @@ resource "shc_firewall_rule" "ssh" {
 `, os.Getenv("SHC_API_KEY"), hostname)
 }
 
-func testAccRDNSConfig(hostname string) string {
-	return fmt.Sprintf(`
-provider "shc" { api_key = "%s" }
-
-resource "shc_vm" "test" {
-  hostname    = "%s"
-  size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
-  auto_cancel = true
-}
-
-resource "shc_rdns" "test" {
-  service_id = shc_vm.test.service_id
-  ip         = shc_vm.test.ip
-  hostname   = "%s.example.com"
-}
-`, os.Getenv("SHC_API_KEY"), hostname, hostname)
-}
-
 func testAccFirewallBlockConfig(hostname string) string {
 	return fmt.Sprintf(`
 provider "shc" { api_key = "%s" }
@@ -183,6 +163,25 @@ resource "shc_firewall_rule" "block_ssh" {
   source     = "0.0.0.0/0"
   direction  = "in"
   name       = "block-ssh"
+}
+`, os.Getenv("SHC_API_KEY"), hostname)
+}
+
+func testAccRDNSConfigWithNipIO(hostname string) string {
+	return fmt.Sprintf(`
+provider "shc" { api_key = "%s" }
+
+resource "shc_vm" "test" {
+  hostname    = "%s"
+  size        = "nvme-1c-4gb"
+  template    = "debian12-cloud"
+  auto_cancel = true
+}
+
+resource "shc_rdns" "test" {
+  service_id = shc_vm.test.service_id
+  ip         = shc_vm.test.ip
+  hostname   = "${shc_vm.test.ip}.nip.io"
 }
 `, os.Getenv("SHC_API_KEY"), hostname)
 }
