@@ -575,6 +575,26 @@ func (c *SHCClient) createSnapshotOnce(ctx context.Context, serviceID, name stri
 		return nil, fmt.Errorf("parsing snapshot response: %w (body: %s)", err, string(respBody))
 	}
 
+	if snapResp.ID.String() == "" {
+		for attempt := 0; attempt < 30; attempt++ {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(5 * time.Second):
+			}
+			snapshots, err := c.GetSnapshots(ctx, serviceID)
+			if err != nil {
+				continue
+			}
+			for _, s := range snapshots {
+				if s.Name == name || (name == "" && s.ID.String() != "") {
+					return &s, nil
+				}
+			}
+		}
+		return nil, fmt.Errorf("snapshot '%s' not found after polling", name)
+	}
+
 	return &snapResp, nil
 }
 
@@ -627,11 +647,7 @@ func (c *SHCClient) DeleteSnapshot(ctx context.Context, serviceID, snapshotID st
 func (c *SHCClient) deleteSnapshotOnce(ctx context.Context, serviceID, snapshotID string) error {
 	path := "/vm/" + serviceID + "/snapshots/delete"
 
-	body, err := json.Marshal(map[string]string{
-		"backup_id":   snapshotID,
-		"snapshot_id": snapshotID,
-		"id":          snapshotID,
-	})
+	body, err := json.Marshal(map[string]string{"snapshot_id": snapshotID})
 	if err != nil {
 		return fmt.Errorf("marshaling delete snapshot request: %w", err)
 	}
