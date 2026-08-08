@@ -1268,9 +1268,21 @@ func (c *SHCClient) UpgradeVM(ctx context.Context, serviceID string, pricingRef 
 
 		if statusCode == http.StatusConflict {
 			errBody := string(respBody)
-			if strings.Contains(errBody, "confirmation_required") || strings.Contains(errBody, "confirmation_id") {
-				_, err = c.handleConfirmation(ctx, http.MethodPatch, path, body, respBody)
-				return err
+			if strings.Contains(errBody, "confirmation_id") {
+				_, confirmErr := c.handleConfirmation(ctx, http.MethodPatch, path, body, respBody)
+				if confirmErr == nil {
+					return nil
+				}
+				if strings.Contains(confirmErr.Error(), "service_not_active") && attempt < maxUpgradeRetries {
+					lastErr = confirmErr
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(upgradeRetryDelay):
+					}
+					continue
+				}
+				return confirmErr
 			}
 			if attempt < maxUpgradeRetries && strings.Contains(errBody, "service_not_active") {
 				lastErr = fmt.Errorf("upgrade: service not active yet (attempt %d): %s", attempt+1, errBody)
