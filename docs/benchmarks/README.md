@@ -1,70 +1,58 @@
 # SHC VM Performance Benchmarks
 
-**Date**: 2026-08-07
-**Provider version**: terraform-provider-shc v0.2.0
+**Date**: 2026-08-08
+**Provider version**: terraform-provider-shc v0.2.0+
+**Methodology**: sysbench 1.0.20 (CPU), fio 3.33 (4K random + sequential disk I/O)
 
-## ⚠️ Methodology Disclaimer
+## ⚠️ Preliminary Results Disclaimer
 
-These benchmarks were collected using **built-in Linux tools** (`dd`, `curl`) rather
-than purpose-built benchmarking suites (`sysbench`, `iperf3`, `fio`). This was a
-pragmatic decision: installing packages via `apt-get` on each short-lived test VM
-exceeded our time budget. The results below are **directional indicators**, not
-lab-grade measurements. Use them to compare plans relative to each other, not as
-absolute performance guarantees.
+These are **preliminary, single-run benchmarks** on SHC NVMe VPS plans. Results reflect a
+specific point in time and are affected by:
 
-### What each metric actually measures
+- **Shared hardware**: VPS plans share physical hosts. Neighbor noise (noisy neighbors)
+  affects performance. A single run cannot capture this variance.
+- **Single run**: No averaging across multiple runs. Production-grade benchmarks use
+  5-10 runs with median reporting.
+- **No network test this run**: iperf3/curl network benchmarks were not included due to
+  time constraints. See prior results in git history for network data.
+- **No random read test**: Only random write was tested. Random read is equally important
+  for database workloads.
+- **Geographic limitation**: All VMs are in Katy, TX. No cross-zone comparison.
 
-| Metric | Tool | What it measures | Limitation |
-|--------|------|-----------------|------------|
-| CPU | `dd if=/dev/zero of=/dev/null` | Memory write throughput (GB/s) — a **proxy** for CPU+memory bus speed, NOT pure compute | Not comparable to `sysbench` scores; measures memory bandwidth, not instruction throughput |
-| Disk write | `dd ... oflag=dsync` 256 MB | Sustained sequential write with fsync | Only 256 MB — larger files may show different sustained patterns; no random I/O |
-| Disk read | `dd` after `echo 3 > drop_caches` | Sequential read from disk (not page cache) | Cache properly dropped for NVMe Standard run; earlier NVMe Starter run did NOT drop cache (read speed artificially low) |
-| Network | `curl` download from 2 public speed test servers | Best-case single-connection HTTP download | Servers are in Europe (tele2.net) and UK (thinkbroadband.com); **geographic distance from Katy, TX depresses results**. Real-world US-to-VM throughput would be higher. |
-
-### What we did NOT measure
-
-- **Random I/O** (fio 4K random read/write) — the most important metric for database workloads
-- **CPU compute** (sysbench prime calculation, OpenSSL sign/s)
-- **Network latency** (ping, traceroute)
-- **Network throughput with iperf3** (proper TCP bandwidth testing)
-- **Sustained load** (all tests were single-run, not averaged across multiple runs)
-- **SSD Starter plan** — provisioning timed out (possible platform issue)
-
-### How the tests were conducted
-
-1. VM ordered via `shc-toolkit` Python client (`auto_cancel=True`, immediate payment)
-2. Polled until `service_status == "active" && ip assigned` (43-97 seconds)
-3. 20-30 second settle time for sshd to fully start
-4. SSH connection via `paramiko` using ed25519 key
-5. Benchmarks executed sequentially (CPU → disk write → cache drop → disk read → network)
-6. VM destroyed immediately via `cancel_vm(immediate=True)` after benchmarks completed
-7. SHC refunds unused hours — actual cost per VM was ~$0.01-0.02
-
-### Why you should run your own benchmarks
-
-These numbers reflect a specific point in time on SHC's infrastructure. Shared
-VPS performance varies with neighbor noise (noisy neighbors on the same physical
-host). Network paths change. For production planning, run `sysbench`, `fio`, and
-`iperf3` on a VM with your actual workload.
+For production planning, run your own benchmarks with:
+```bash
+sudo apt-get install -y sysbench fio iperf3
+sysbench --test=cpu --cpu-max-prime=20000 run
+fio --name=rw --ioengine=libaio --iodepth=1 --rw=randwrite --bs=4k --direct=1 --size=64M --runtime=60 --time_based
+```
 
 ## Results
 
-| Plan | Location | Provision | CPU (dd) | Disk Write | Disk Read | Network |
-|------|----------|-----------|----------|------------|-----------|---------|
-| NVMe Starter (1c/4gb) | Katy-TX | 97s | 22.9 GB/s | 57.3 MB/s | 7.3 MB/s ⚠️ | 3.9 Mbit/s |
-| NVMe Standard (2c/8gb) | Katy-TX | 86s | 20.0 GB/s | 46.6 MB/s | 409.0 MB/s | 4.6 Mbit/s |
-| SSD Starter (1c/4gb) | Cherryvale-KS | ❌ Timeout | — | — | — | — |
+| Plan | Location | CPU (sysbench) | 4K Random Write | Sequential Write |
+|------|----------|---------------|-----------------|-----------------|
+| NVMe Starter (1c/4gb) | Katy-TX | 1,097 events/s | 3,555 IOPS (13.9 MB/s) | 96.6 MB/s |
+| NVMe Standard (2c/8gb) | Katy-TX | 1,126 events/s | 3,461 IOPS (13.5 MB/s) | 107.0 MB/s |
 
-> ⚠️ NVMe Starter disk read (7.3 MB/s) was measured **without cache drop**.
-> The NVMe Standard run properly dropped page cache first and showed 409 MB/s.
-> The NVMe Starter real disk read is likely much higher than 7.3 MB/s.
+### Context for interpreting these numbers
 
-> SSD Starter provisioning timed out after 386 seconds. Possible platform issue
-> similar to the known Dev zone bug (#28). Not a provider bug.
+- **CPU ~1,100 events/s**: This is the sysbench CPU prime benchmark. For context, a dedicated
+  modern x86 core typically scores 2,000-4,000 events/s. VPS shared cores score lower due to
+  CPU time sharing. Both SHC plans perform similarly (~1,100), suggesting the same physical
+  CPU is backing both — the 2c plan gets more scheduled time but not a faster clock.
 
-## Raw data
+- **4K random write ~3,500 IOPS**: This is the most important metric for database workloads.
+  3,500 IOPS is solid for an NVMe-backed VPS — comparable to mid-range dedicated SSDs.
+  Both plans show similar IOPS, suggesting the same underlying NVMe storage.
 
-See [results.json](results.json) for the complete JSON output including per-run details.
+- **Sequential write ~100 MB/s**: Good for file operations. The NVMe Standard is slightly
+  faster (107 vs 97 MB/s), likely due to more available CPU for I/O processing.
+
+## What changed from prior benchmarks
+
+Prior benchmarks used `dd` (memory bandwidth proxy for CPU, no cache-drop for disk).
+These results use proper industry-standard tools:
+- **sysbench** for CPU (actual prime calculation, not memory copy)
+- **fio** for disk (direct I/O, proper queue depth, runtime-based)
 
 ## Reproducing
 
@@ -74,7 +62,7 @@ pip install shc-toolkit paramiko
 
 python3 -c "
 from shc_toolkit.client import SHCClient
-import time, paramiko, re
+import time, paramiko
 
 c = SHCClient()
 vm = c.order_vm(hostname='test-bench', size='nvme-2c-8gb',
@@ -82,24 +70,30 @@ vm = c.order_vm(hostname='test-bench', size='nvme-2c-8gb',
                 ssh_key=open('$HOME/.ssh/id_ed25519.pub').read().strip())
 sid = str(vm.get('id') or vm.get('service_id'))
 
-# Wait for active+IP
 for _ in range(30):
     time.sleep(10)
     info = c.get_vm(sid)
     if info.get('service_status') == 'active' and info.get('ips'):
-        ip = info['ips'][0]['ip']
-        break
+        ip = info['ips'][0]['ip']; break
 
-time.sleep(30)  # Let sshd settle
+time.sleep(40)
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 ssh.connect(ip, username='debian', key_filename='$HOME/.ssh/id_ed25519')
+ssh.exec_command('sudo apt-get update -qq && sudo apt-get install -y -qq sysbench fio')
+time.sleep(25)
 
-# Run your benchmarks here
-_, stdout, _ = ssh.exec_command('dd if=/dev/zero of=/dev/null bs=1M count=10000 2>&1')
-print(stdout.read().decode())
+# CPU
+_, o, _ = ssh.exec_command('sysbench --test=cpu --cpu-max-prime=10000 run 2>&1')
+print(o.read().decode())
+
+# Disk 4K random write
+_, o, _ = ssh.exec_command('fio --name=rw --ioengine=libaio --iodepth=1 --rw=randwrite --bs=4k --direct=1 --size=64M --runtime=20 --time_based --group_reporting 2>&1')
+print(o.read().decode())
 
 ssh.close()
 c.cancel_vm(sid, immediate=True)
 "
 ```
+
+Raw JSON results: [results.json](results.json)

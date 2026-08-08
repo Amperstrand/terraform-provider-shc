@@ -1,29 +1,31 @@
 {
-  "date": "2026-08-07",
-  "methodology": "dd (CPU+disk), curl multi-target (network). No package installation. Cache dropped before disk read. 1 run per plan.",
+  "date": "2026-08-08",
+  "methodology": "sysbench CPU, fio 4K random + sequential disk. Tools: sysbench 1.0.20, fio 3.33. 1 run per plan. NVMe plans in Katy-TX.",
   "results": [
     {
       "size": "nvme-1c-4gb",
-      "label": "NVMe Starter (Katy-TX)",
+      "label": "NVMe Starter",
       "status": "ok",
-      "ready_after_seconds": 53,
-      "ip": "23.182.128.217",
+      "ready_after_seconds": 74,
+      "ip": "23.182.128.77",
       "benchmarks": {
-        "error": "Error reading SSH protocol banner[Errno 54] Connection reset by peer"
+        "cpu_sysbench_events_per_sec": 1097.4,
+        "disk_4k_randwrite_iops": 3555,
+        "disk_4k_randwrite_mbs": 13.9,
+        "disk_seqwrite_mbs": 96.6
       }
     },
     {
       "size": "nvme-2c-8gb",
-      "label": "NVMe Standard (Katy-TX)",
+      "label": "NVMe Standard",
       "status": "ok",
-      "ready_after_seconds": 86,
-      "ip": "23.182.128.217",
+      "ready_after_seconds": 85,
+      "ip": "23.182.128.77",
       "benchmarks": {
-        "cpu_dd_gb_s": 20.0,
-        "disk_write_mb_s": 46.6,
-        "disk_read_mb_s": 409.0,
-        "network_mbits": 4.6,
-        "network_targets_tested": 2
+        "cpu_sysbench_events_per_sec": 1126.0,
+        "disk_4k_randwrite_iops": 3461,
+        "disk_4k_randwrite_mbs": 13.5,
+        "disk_seqwrite_mbs": 107.0
       }
     }
   ]

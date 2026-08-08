@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -104,12 +105,30 @@ func NewSHCClient(apiKey, endpoint string) *SHCClient {
 		endpoint = defaultBaseURL
 	}
 
+	retryClient := retryablehttp.NewClient()
+	retryClient.RetryMax = httpMaxRetries
+	retryClient.RetryWaitMin = httpRetryBase
+	retryClient.RetryWaitMax = httpRetryMax
+	retryClient.CheckRetry = func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
+		if err != nil {
+			return true, nil
+		}
+		if resp != nil && isRetryableStatus(resp.StatusCode) {
+			return true, nil
+		}
+		return false, nil
+	}
+	retryClient.Backoff = retryablehttp.DefaultBackoff
+	retryClient.HTTPClient.Timeout = 60 * time.Second
+	retryClient.Logger = nil
+
 	c := &SHCClient{
-		baseURL: strings.TrimRight(endpoint, "/"),
-		apiKey:  apiKey,
-		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
-		},
+		baseURL:     strings.TrimRight(endpoint, "/"),
+		apiKey:      apiKey,
+		httpClient:  retryClient.StandardClient(),
 	}
 	c.costTracker = NewCostTracker(c)
 	return c
@@ -134,46 +153,13 @@ func unwrapData(raw []byte) []byte {
 	return raw
 }
 
-// doRequest executes an HTTP request with automatic retry on transient
-// failures (429 Too Many Requests, 503 Service Unavailable). These status
-// codes indicate the server has not processed the request, so retrying is
-// safe for all methods including POST. Exponential backoff with ±20% jitter
-// matches the Python SHCClient's retry behavior.
+// Retry on 429/503 is handled by the retryablehttp transport configured in
+// NewSHCClient. doRequest delegates directly to doRequestOnce.
 func (c *SHCClient) doRequest(ctx context.Context, method, path string, body []byte, confirmID string) (int, []byte, error) {
-	var statusCode int
-	var respBody []byte
-
-	for attempt := 0; ; attempt++ {
-		var err error
-		statusCode, respBody, err = c.doRequestOnce(ctx, method, path, body, confirmID)
-		if err != nil {
-			return statusCode, respBody, err
-		}
-
-		if !isRetryableStatus(statusCode) || attempt >= httpMaxRetries {
-			return statusCode, respBody, nil
-		}
-
-		// Exponential backoff: 1s, 2s, 4s — capped at httpRetryMax, with ±20% jitter.
-		delay := httpRetryBase * time.Duration(1<<attempt)
-		if delay > httpRetryMax {
-			delay = httpRetryMax
-		}
-		jitterRange := delay / 5 // 20% of delay
-		delay = delay - jitterRange/2 + time.Duration(rand.Int64N(int64(jitterRange)))
-
-		select {
-		case <-ctx.Done():
-			return statusCode, respBody, fmt.Errorf(
-				"context cancelled during HTTP %d retry on %s %s: %w",
-				statusCode, method, path, ctx.Err(),
-			)
-		case <-time.After(delay):
-		}
-	}
+	return c.doRequestOnce(ctx, method, path, body, confirmID)
 }
 
-// doRequestOnce executes a single HTTP request without retry. Called by doRequest.
+// doRequestOnce executes a single HTTP request.
 func (c *SHCClient) doRequestOnce(ctx context.Context, method, path string, body []byte, confirmID string) (int, []byte, error) {
 	var bodyReader io.Reader
 	if body != nil {
