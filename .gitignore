@@ -4,3 +4,9 @@ terraform-provider-shc
 __pycache__/
 *.pyc
 dist/
+
+# Security/fuzz testing scripts (authorized testing, not for public repo)
+*security*
+*fuzz*
+*pentest*
+*vuln_scan*
