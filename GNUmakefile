@@ -18,3 +18,9 @@ vet:
 
 fmt:
 	gofmt -w $(GOFMT_FILES)
+
+docs:
+	go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest generate
+
+docs-validate:
+	go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest validate

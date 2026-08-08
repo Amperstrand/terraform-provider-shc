@@ -81,6 +81,9 @@ func (r *snapshotResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			"snapshot_id": resourceschema.StringAttribute{
 				Computed:    true,
 				Description: "The ID of the created snapshot.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"status": resourceschema.StringAttribute{
 				Computed:    true,

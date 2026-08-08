@@ -291,3 +291,50 @@ func testAccDeleteVMExternally(resourceName string) resource.TestCheckFunc {
 		return client.CancelVM(context.Background(), serviceID, true)
 	}
 }
+
+func TestAccFullStack(t *testing.T) {
+	hostname := "tf-acc-test-stack-" + acctest.RandString(8)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckVMDestroy,
+		Steps: []resource.TestStep{{
+			Config: testAccFullStackConfig(hostname),
+			Check: resource.ComposeTestCheckFunc(
+				resource.TestCheckResourceAttrSet("shc_vm.app", "service_id"),
+				resource.TestCheckResourceAttrSet("shc_vm.app", "ip"),
+				resource.TestCheckResourceAttrSet("shc_snapshot.pre", "snapshot_id"),
+				resource.TestCheckResourceAttrSet("shc_firewall_rule.web", "position"),
+			),
+		}},
+	})
+}
+
+func testAccFullStackConfig(hostname string) string {
+	return fmt.Sprintf(`
+provider "shc" { api_key = "%s" }
+
+resource "shc_vm" "app" {
+  hostname    = "%s"
+  size        = "nvme-1c-4gb"
+  template    = "debian12-cloud"
+  auto_cancel = true
+}
+
+resource "shc_snapshot" "pre" {
+  service_id = shc_vm.app.service_id
+  name       = "pre-deploy"
+}
+
+resource "shc_firewall_rule" "web" {
+  service_id = shc_vm.app.service_id
+  action     = "accept"
+  protocol   = "tcp"
+  port       = "443"
+  source     = "0.0.0.0/0"
+  direction  = "in"
+  name       = "allow-https"
+}
+`, os.Getenv("SHC_API_KEY"), hostname)
+}

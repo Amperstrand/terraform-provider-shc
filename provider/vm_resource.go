@@ -22,9 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-)
-
-// Default timeouts applied to VM CRUD operations unless overridden by the
+)// Default timeouts applied to VM CRUD operations unless overridden by the
 // practitioner via the "timeouts" block.
 const (
 	defaultVMCreateTimeout = 10 * time.Minute
@@ -345,7 +343,7 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	creditBefore := r.client.SafeCredit(ctx)
 	orderResp, err := r.client.SubmitOrder(ctx, plan.Hostname.ValueString(), plan.PackageID.ValueInt64(), plan.PricingID.ValueInt64(), configOptions)
 	if err != nil {
-		resp.Diagnostics.AddError("Error creating VM", fmt.Sprintf("Could not submit order: %s", err))
+		addSHCError(&resp.Diagnostics, "Creating VM", fmt.Errorf("Could not submit order: %w", err))
 		return
 	}
 
@@ -478,7 +476,7 @@ func (r *vmResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 			resp.State.RemoveResource(ctx)
 			return
 		}
-		resp.Diagnostics.AddError("Error reading VM", err.Error())
+		addSHCError(&resp.Diagnostics, "Reading VM", err)
 		return
 	}
 
@@ -599,7 +597,7 @@ func (r *vmResource) Delete(ctx context.Context, req resource.DeleteRequest, res
 	creditBefore := r.client.SafeCredit(ctx)
 	err := r.client.CancelVM(ctx, state.ServiceID.ValueString(), true)
 	if err != nil {
-		resp.Diagnostics.AddError("Error deleting VM", err.Error())
+		addSHCError(&resp.Diagnostics, "Destroying VM", err)
 		return
 	}
 
@@ -696,7 +694,7 @@ func (d *vmDataSource) Read(ctx context.Context, req datasource.ReadRequest, res
 			resp.Diagnostics.AddError("VM not found", fmt.Sprintf("No VM found with service ID %s", state.ServiceID.ValueString()))
 			return
 		}
-		resp.Diagnostics.AddError("Error reading VM", err.Error())
+		addSHCError(&resp.Diagnostics, "Reading VM", err)
 		return
 	}
 

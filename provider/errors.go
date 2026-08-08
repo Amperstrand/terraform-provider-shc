@@ -58,3 +58,23 @@ func shcErrorDiagnostic(operation string, body []byte) (diag.Diagnostic, bool) {
 
 	return diag.NewErrorDiagnostic(summary, detail.String()), true
 }
+
+func addSHCError(diags *diag.Diagnostics, operation string, err error) {
+	if err == nil {
+		return
+	}
+	errStr := err.Error()
+	
+	start := strings.Index(errStr, "{")
+	if start >= 0 {
+		body := []byte(errStr[start:])
+		if d, ok := shcErrorDiagnostic(operation, body); ok {
+			diags.Append(d)
+			return
+		}
+	}
+	diags.AddError(
+		fmt.Sprintf("%s failed", operation),
+		err.Error(),
+	)
+}
