@@ -237,3 +237,109 @@ resource "shc_vm" "test" {
 }
 `, os.Getenv("SHC_API_KEY"))
 }
+
+func TestAccVMResource_PowerState(t *testing.T) {
+	hostname := "tf-acc-test-vm-pwr-" + acctest.RandString(8)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckVMDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccVMResourceConfigPowerState(hostname, "running"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
+					resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
+				),
+			},
+			{
+				Config: testAccVMResourceConfigPowerState(hostname, "stopped"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("shc_vm.test", "power_state", "stopped"),
+				),
+			},
+			{
+				Config: testAccVMResourceConfigPowerState(hostname, "running"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("shc_vm.test", "power_state", "running"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccVMResource_Template(t *testing.T) {
+	hostname := "tf-acc-test-vm-ubu-" + acctest.RandString(8)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckVMDestroy,
+		Steps: []resource.TestStep{{
+			Config: testAccVMResourceConfigWithTemplate(hostname, "ubuntu2404-cloud"),
+			Check: resource.ComposeTestCheckFunc(
+				resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
+				resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
+				resource.TestCheckResourceAttr("shc_vm.test", "status", "active"),
+			),
+		}},
+	})
+}
+
+func TestAccVMResource_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		errMsg string
+	}{
+		{"negative_cpu", testAccVMResourceConfigEdge("cpu", "-1"), "(?i)positive"},
+		{"zero_ram", testAccVMResourceConfigEdge("ram_mb", "0"), "(?i)positive"},
+		{"zero_disk", testAccVMResourceConfigEdge("disk_gb", "0"), "(?i)positive"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resource.Test(t, resource.TestCase{
+				PreCheck:                 func() { testAccPreCheck(t) },
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+				Steps: []resource.TestStep{{
+					Config:      tt.config,
+					ExpectError: regexp.MustCompile(tt.errMsg),
+				}},
+			})
+		})
+	}
+}
+
+func testAccVMResourceConfigPowerState(hostname, state string) string {
+	return fmt.Sprintf(`
+provider "shc" {
+  api_key = "%s"
+}
+
+resource "shc_vm" "test" {
+  hostname    = "%s"
+  size        = "nvme-1c-4gb"
+  template    = "debian12-cloud"
+  power_state = "%s"
+  auto_cancel = true
+}
+`, os.Getenv("SHC_API_KEY"), hostname, state)
+}
+
+func testAccVMResourceConfigEdge(attr, val string) string {
+	return fmt.Sprintf(`
+provider "shc" {
+  api_key = "%s"
+}
+
+resource "shc_vm" "test" {
+  hostname    = "tf-acc-test-edge"
+  size        = "nvme-1c-4gb"
+  template    = "debian12-cloud"
+  %s          = %s
+  auto_cancel = true
+}
+`, os.Getenv("SHC_API_KEY"), attr, val)
+}
