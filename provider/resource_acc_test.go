@@ -3,8 +3,10 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -160,4 +162,54 @@ resource "shc_rdns" "test" {
   hostname   = "%s.example.com"
 }
 `, os.Getenv("SHC_API_KEY"), hostname, hostname)
+}
+
+func testAccCheckPortReachable(resourceName, port string, expectOpen bool) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("resource not found: %s", resourceName)
+		}
+		ip := rs.Primary.Attributes["ip"]
+		if ip == "" {
+			return fmt.Errorf("no IP on %s", resourceName)
+		}
+		addr := net.JoinHostPort(ip, port)
+		for attempt := 0; attempt < 12; attempt++ {
+			conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+			if expectOpen && err == nil {
+				conn.Close()
+				return nil
+			}
+			if !expectOpen && err != nil {
+				return nil
+			}
+			if conn != nil {
+				conn.Close()
+			}
+			time.Sleep(10 * time.Second)
+		}
+		if expectOpen {
+			return fmt.Errorf("port %s on %s not reachable after 2 min", port, ip)
+		}
+		return fmt.Errorf("port %s on %s unexpectedly open", port, ip)
+	}
+}
+
+func TestAccFirewallRule_PortAccessible(t *testing.T) {
+	hostname := "tf-acc-test-fwport-" + acctest.RandString(8)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckVMDestroy,
+		Steps: []resource.TestStep{{
+			Config: testAccFirewallConfig(hostname),
+			Check: resource.ComposeTestCheckFunc(
+				resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
+				resource.TestCheckResourceAttrSet("shc_firewall_rule.ssh", "position"),
+				testAccCheckPortReachable("shc_vm.test", "22", true),
+			),
+		}},
+	})
 }
