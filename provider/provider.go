@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/provider/metaschema"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -106,6 +107,18 @@ func (p *SHCProvider) Functions(_ context.Context) []func() function.Function {
 }
 
 var _ provider.Provider = (*SHCProvider)(nil)
+var _ provider.ProviderWithMetaSchema = (*SHCProvider)(nil)
+
+func (p *SHCProvider) MetaSchema(_ context.Context, _ provider.MetaSchemaRequest, resp *provider.MetaSchemaResponse) {
+	resp.Schema = metaschema.Schema{
+		Attributes: map[string]metaschema.Attribute{
+			"schema_version": metaschema.Int64Attribute{
+				Optional:    true,
+				Description: "Tracks the provider schema version that wrote the state. Used for upgrade detection.",
+			},
+		},
+	}
+}
 
 func providerDataAssert(data any, name string) (*SHCClient, error) {
 	client, ok := data.(*SHCClient)

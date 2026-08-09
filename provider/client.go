@@ -175,6 +175,7 @@ func (c *SHCClient) doRequestOnce(ctx context.Context, method, path string, body
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "terraform-provider-shc/v0.2.0")
 	if confirmID != "" {
 		req.Header.Set("X-User-Api-Confirm", confirmID)
 	}
