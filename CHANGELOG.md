@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-09
+
+### Added
+- `data.shc_vms`: list ALL VMs on account (hostname, IP, status, package)
+- `data.shc_billing`: account balance, credit, currency, recent invoices
+- `provider::shc::estimate_cost("nvme-2c-8gb", 30, "days")`: cost estimation function
+- Network benchmark data (curl: 4.1-4.2 Mbit/s to European servers)
+
+### Changed
+- `client.go` refactored from 1650 to 424 lines (split into 6 domain files)
+- All CRUD methods now use `addSHCError()` for structured error diagnostics
+
 ## [0.3.0] — 2026-08-09
 
 ### Added
