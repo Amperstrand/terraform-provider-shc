@@ -10,3 +10,8 @@ dist/
 *fuzz*
 *pentest*
 *vuln_scan*
+
+# Diagnostic screenshots
+*.png
+*.jpg
+*.jpeg
