@@ -24,8 +24,8 @@ type firewallRuleResource struct {
 type firewallRuleResourceModel struct {
 	ID        types.String `tfsdk:"id"`
 	ServiceID types.String `tfsdk:"service_id"`
-	Action    types.String `tfsdk:"action"`
-	Protocol  types.String `tfsdk:"protocol"`
+	Action    CaseInsensitiveStringValue `tfsdk:"action"`
+	Protocol  CaseInsensitiveStringValue `tfsdk:"protocol"`
 	Port      types.String `tfsdk:"port"`
 	Source    types.String `tfsdk:"source"`
 	Direction types.String `tfsdk:"direction"`
@@ -62,14 +62,14 @@ func (r *firewallRuleResource) Schema(_ context.Context, _ resource.SchemaReques
 			"action": resourceschema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "The firewall action: accept, drop, or reject. Defaults to accept.",
-				Default:     stringdefault.StaticString("accept"),
+				CustomType:  CaseInsensitiveStringType{},
+				Description: "The firewall action: accept, drop, or reject. Defaults to accept. Case-insensitive.",
 			},
 			"protocol": resourceschema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "The protocol: tcp, udp, or icmp. Defaults to tcp.",
-				Default:     stringdefault.StaticString("tcp"),
+				CustomType:  CaseInsensitiveStringType{},
+				Description: "The protocol: tcp, udp, or icmp. Defaults to tcp. Case-insensitive.",
 			},
 			"port": resourceschema.StringAttribute{
 				Optional:    true,
@@ -147,9 +147,18 @@ func (r *firewallRuleResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	action := plan.Action.ValueString()
+	if action == "" {
+		action = "accept"
+	}
+	protocol := plan.Protocol.ValueString()
+	if protocol == "" {
+		protocol = "tcp"
+	}
+
 	ruleBody := map[string]string{
-		"action":    plan.Action.ValueString(),
-		"protocol":  plan.Protocol.ValueString(),
+		"action":    action,
+		"protocol":  protocol,
 		"source":    plan.Source.ValueString(),
 		"direction": plan.Direction.ValueString(),
 	}
@@ -208,11 +217,11 @@ func (r *firewallRuleResource) Read(ctx context.Context, req resource.ReadReques
 	for _, rule := range fw.Rules {
 		if rule.Position.Int64() == targetPos {
 			found = true
-			if v := strings.ToLower(rule.Action); v != "" {
-				state.Action = types.StringValue(v)
+			if rule.Action != "" {
+				state.Action = NewCIString(rule.Action)
 			}
-			if v := strings.ToLower(rule.Protocol); v != "" {
-				state.Protocol = types.StringValue(v)
+			if rule.Protocol != "" {
+				state.Protocol = NewCIString(rule.Protocol)
 			}
 			if rule.Port != "" {
 				state.Port = types.StringValue(rule.Port)
@@ -220,8 +229,8 @@ func (r *firewallRuleResource) Read(ctx context.Context, req resource.ReadReques
 			if rule.Source != "" {
 				state.Source = types.StringValue(rule.Source)
 			}
-			if v := strings.ToLower(rule.Direction); v != "" {
-				state.Direction = types.StringValue(v)
+			if rule.Direction != "" {
+				state.Direction = types.StringValue(rule.Direction)
 			}
 			if rule.Name != "" {
 				state.Name = types.StringValue(rule.Name)
