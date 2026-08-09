@@ -80,3 +80,32 @@ pulumi destroy --yes
 3. `waitForProvisioning`: checks `status == "active" && ip != ""` (not `provisioning_state == "ready"`)
 4. `term` attribute: removed `Computed` flag (caused bridge schema error)
 5. `package_id`/`pricing_id`: added `Computed` flag (provider resolves from `size`)
+
+## v0.3.0 Verification (2026-08-09)
+
+Re-verified after major changes: go-retryablehttp, semantic equality,
+write-only ssh_key, provider-defined function, User-Agent header.
+
+```
+pulumi up → VM created in 101s, IP=23.182.128.77, status=active
+pulumi destroy → VM deleted in 10.7s
+```
+
+**Result**: No regressions. All v0.3.0 changes work through the Pulumi bridge.
+
+## debian13-cloud Isolation Test (2026-08-09)
+
+Tested whether the debian13-cloud cloud-init deadlock (#24) is caused by
+the template itself or by the Dev zone (Cherryvale-KS, #28).
+
+| Template | Zone | Plan | Provision | SSH Port 22 |
+|----------|------|------|-----------|-------------|
+| debian13-cloud | Katy-TX | NVMe Starter (1c/4gb) | 53s | ✅ REACHABLE |
+| debian12-cloud | Katy-TX | NVMe Starter (1c/4gb) | 96s | ✅ REACHABLE |
+
+**Conclusion**: debian13-cloud works perfectly in Katy-TX. The cloud-init
+deadlock (#24) is **NOT a template issue** — it's a **Dev zone (Cherryvale-KS) issue**.
+Issues #24 and #28 share the same root cause: the Cherryvale-KS zone has
+a broken infrastructure pipeline. Both should be consolidated into one issue.
+
+This means `debian13-cloud` is safe to use in Katy-TX (NVMe zone).
