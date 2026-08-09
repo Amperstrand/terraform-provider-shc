@@ -151,10 +151,13 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 					positiveInt64(),
 				},
 			},
-			"template": resourceschema.StringAttribute{
-				Optional:    true,
-				Description: "OS template slug (e.g. debian12-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.",
+		"template": resourceschema.StringAttribute{
+			Optional:    true,
+			Description: "OS template slug (e.g. debian12-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.",
+			Validators: []validator.String{
+				template(),
 			},
+		},
 			"ssh_key": resourceschema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,

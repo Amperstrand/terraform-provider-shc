@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
@@ -74,6 +75,55 @@ func (v powerStateValidator) ValidateString(_ context.Context, req validator.Str
 // powerState returns a validator that ensures the string is "running" or "stopped".
 func powerState() powerStateValidator {
 	return powerStateValidator{}
+}
+
+type templateValidator struct{}
+
+func (v templateValidator) Description(_ context.Context) string {
+	return "value must be a valid SHC template name"
+}
+
+func (v templateValidator) MarkdownDescription(_ context.Context) string {
+	return v.Description(context.Background())
+}
+
+func (v templateValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	val := req.ConfigValue.ValueString()
+	if !isKnownTemplate(val) {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Template",
+			fmt.Sprintf("Unknown template %q. Valid templates: %s", val, knownTemplateList()),
+		)
+	}
+}
+
+func template() templateValidator {
+	return templateValidator{}
+}
+
+var knownTemplates = []string{
+	"debian12-cloud", "debian13-cloud",
+	"ubuntu2404-cloud", "ubuntu2204-cloud",
+	"fedora43-cloud", "arch-cloud", "nixos-cloud",
+	"almalinux9-cloud", "alpine323-cloud",
+	"devuan5-cloud", "openbsd79-cloud",
+}
+
+func isKnownTemplate(val string) bool {
+	for _, t := range knownTemplates {
+		if val == t {
+			return true
+		}
+	}
+	return false
+}
+
+func knownTemplateList() string {
+	return strings.Join(knownTemplates, ", ")
 }
 
 // ---------------------------------------------------------------------------

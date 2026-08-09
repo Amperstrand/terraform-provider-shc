@@ -112,7 +112,7 @@ func NewSHCClient(apiKey, endpoint string) *SHCClient {
 		if err != nil {
 			return true, nil
 		}
-		if resp != nil && isRetryableStatus(resp.StatusCode) {
+		if resp != nil && (isRetryableStatus(resp.StatusCode) || resp.StatusCode >= 500) {
 			return true, nil
 		}
 		return false, nil
