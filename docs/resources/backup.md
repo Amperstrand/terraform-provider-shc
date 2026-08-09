@@ -28,3 +28,18 @@ Manages a backup of an SHC VPS.
 
 - `backup_id` (String) The ID of the created backup.
 - `status` (String) The status of the backup.
+
+## Example Usage
+
+```hcl
+resource "shc_vm" "app" {
+  hostname = "app"
+  size     = "nvme-1c-4gb"
+  template = "debian12-cloud"
+}
+
+resource "shc_backup" "weekly" {
+  service_id = shc_vm.app.service_id
+  name       = "weekly-backup"
+}
+```

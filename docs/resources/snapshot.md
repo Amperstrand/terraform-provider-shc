@@ -29,3 +29,18 @@ Manages a snapshot of an SHC VPS.
 - `id` (String) The snapshot ID.
 - `snapshot_id` (String) The ID of the created snapshot.
 - `status` (String) The status of the snapshot.
+
+## Example Usage
+
+```hcl
+resource "shc_vm" "db" {
+  hostname = "database"
+  size     = "nvme-2c-8gb"
+  template = "debian12-cloud"
+}
+
+resource "shc_snapshot" "pre_deploy" {
+  service_id = shc_vm.db.service_id
+  name       = "pre-deploy-checkpoint"
+}
+```

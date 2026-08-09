@@ -54,3 +54,71 @@ Optional:
 - `delete` (String) Timeout for VM deletion. Defaults to 5m.
 - `read` (String) Timeout for VM read operations. Defaults to 5m.
 - `update` (String) Timeout for VM update operations.
+
+## Example Usage
+
+### Basic VM (NVMe Starter)
+
+```hcl
+resource "shc_vm" "web" {
+  hostname    = "web-server"
+  size        = "nvme-1c-4gb"
+  template    = "debian12-cloud"
+  auto_cancel = true
+
+  timeouts {
+    create = "15m"
+  }
+}
+
+output "vm_ip" {
+  value = shc_vm.web.ip
+}
+```
+
+### VM with SSH key and firewall
+
+```hcl
+resource "shc_vm" "app" {
+  hostname    = "app-server"
+  size        = "nvme-2c-8gb"
+  template    = "ubuntu2404-cloud"
+  ssh_key     = file("~/.ssh/id_ed25519.pub")
+  auto_cancel = true
+}
+
+resource "shc_firewall_rule" "ssh" {
+  service_id = shc_vm.app.service_id
+  action     = "accept"
+  protocol   = "tcp"
+  port       = "22"
+  source     = "0.0.0.0/0"
+  direction  = "in"
+}
+
+resource "shc_firewall_rule" "https" {
+  service_id = shc_vm.app.service_id
+  action     = "accept"
+  protocol   = "tcp"
+  port       = "443"
+  source     = "0.0.0.0/0"
+  direction  = "in"
+}
+```
+
+### Using the cost estimation function
+
+```hcl
+output "monthly_cost" {
+  value = provider::shc::estimate_cost("nvme-2c-8gb", 30, "days").total_cost
+}
+```
+
+### Import an existing VM
+
+```hcl
+import {
+  to = shc_vm.existing
+  id = "12345"
+}
+```

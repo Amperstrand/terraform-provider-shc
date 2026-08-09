@@ -32,3 +32,35 @@ Manages a firewall rule on an SHC VPS instance.
 
 - `id` (String) The rule identifier (service_id:position).
 - `position` (Number) The position of the rule in the chain.
+
+## Example Usage
+
+```hcl
+resource "shc_vm" "app" {
+  hostname = "app"
+  size     = "nvme-1c-4gb"
+  template = "debian12-cloud"
+}
+
+# Allow SSH from anywhere
+resource "shc_firewall_rule" "ssh" {
+  service_id = shc_vm.app.service_id
+  action     = "accept"
+  protocol   = "tcp"
+  port       = "22"
+  source     = "0.0.0.0/0"
+  direction  = "in"
+  name       = "allow-ssh"
+}
+
+# Block a specific IP
+resource "shc_firewall_rule" "block_abuser" {
+  service_id = shc_vm.app.service_id
+  action     = "drop"
+  protocol   = "tcp"
+  port       = "443"
+  source     = "203.0.113.50/32"
+  direction  = "in"
+  name       = "block-abuser"
+}
+```

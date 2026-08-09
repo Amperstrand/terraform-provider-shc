@@ -27,3 +27,25 @@ Manages reverse DNS (PTR record) for an IP address on an SHC VPS instance.
 ### Read-Only
 
 - `job_id` (String) The async job ID for the rDNS operation.
+
+## Example Usage
+
+```hcl
+resource "shc_vm" "mail" {
+  hostname = "mail"
+  size     = "nvme-2c-8gb"
+  template = "debian12-cloud"
+}
+
+# Set reverse DNS — hostname must have a forward A record pointing
+# to the VM's IP (FCrDNS requirement)
+resource "shc_rdns" "mail_ptr" {
+  service_id = shc_vm.mail.service_id
+  ip         = shc_vm.mail.ip
+  hostname   = "${shc_vm.mail.ip}.nip.io"
+}
+```
+
+> **Note**: SHC enforces Forward-Confirmed Reverse DNS (FCrDNS). The hostname
+> must resolve (A/AAAA) back to the VM's IP before the API accepts it.
+> Use `nip.io` wildcard DNS for testing: `23.182.128.77.nip.io` resolves to `23.182.128.77`.

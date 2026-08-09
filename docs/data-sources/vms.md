@@ -31,3 +31,17 @@ Read-Only:
 - `provisioning_state` (String) The provisioning state.
 - `service_id` (String) The SHC service ID.
 - `status` (String) The service status (active, pending, canceled).
+
+## Example Usage
+
+```hcl
+data "shc_vms" "all" {}
+
+output "vm_count" {
+  value = length(data.shc_vms.all.vms)
+}
+
+output "vm_hostnames" {
+  value = [for vm in data.shc_vms.all.vms : vm.hostname]
+}
+```

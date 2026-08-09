@@ -28,3 +28,13 @@ Read-Only:
 - `family` (String) The OS family (e.g. debian, ubuntu, fedora).
 - `name` (String) The template name (e.g. debian13-cloud).
 - `status` (String) The availability status of the template.
+
+## Example Usage
+
+```hcl
+data "shc_templates" "available" {}
+
+output "debian_templates" {
+  value = [for t in data.shc_templates.available.templates : t.name if can(regex("debian", t.name))]
+}
+```

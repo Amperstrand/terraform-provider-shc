@@ -29,3 +29,13 @@ Read-Only:
 - `memory_mb` (Number) The amount of memory in megabytes.
 - `name` (String) The human-readable name of the package.
 - `package_id` (Number) The SHC package ID.
+
+## Example Usage
+
+```hcl
+data "shc_catalog" "current" {}
+
+output "available_packages" {
+  value = [for pkg in data.shc_catalog.current.packages : pkg.name]
+}
+```

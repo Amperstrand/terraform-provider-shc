@@ -32,3 +32,17 @@ Read-Only:
 - `invoice_id` (String) The invoice ID.
 - `status` (String) Invoice status (open, paid, etc.).
 - `total` (String) The invoice total.
+
+## Example Usage
+
+```hcl
+data "shc_billing" "current" {}
+
+output "credit_balance" {
+  value = data.shc_billing.current.credit
+}
+
+output "open_invoices" {
+  value = [for inv in data.shc_billing.current.invoices : inv.total if inv.status == "open"]
+}
+```
