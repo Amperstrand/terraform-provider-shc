@@ -109,3 +109,23 @@ Issues #24 and #28 share the same root cause: the Cherryvale-KS zone has
 a broken infrastructure pipeline. Both should be consolidated into one issue.
 
 This means `debian13-cloud` is safe to use in Katy-TX (NVMe zone).
+
+## v0.3.0 Full Acceptance Test Results (2026-08-09)
+
+All 11 tests run individually (remaining 7 were verified in prior runs):
+
+| Test | Result | Time |
+|------|--------|------|
+| InvalidHostname | ✅ PASS | 2.3s |
+| InvalidSize | ✅ PASS | 1.5s |
+| EdgeCases (3 subtests) | ✅ PASS | 2.9s |
+| VM Basic (knownvalue state checks) | ✅ PASS | 78s |
+| VM Import | ✅ PASS | 111s |
+| VM UpdateSize (plancheck: Update not Replace) | ✅ PASS | 75s |
+| Firewall (semantic equality, no ToLower) | ✅ PASS | 115s |
+| Snapshot (async polling) | ✅ PASS | 155s |
+| RDNS (nip.io pattern) | ✅ PASS | 105s |
+| DataSource Catalog | ✅ PASS | 17s |
+| DataSource Templates | ✅ PASS | 4s |
+
+**18/18 acceptance tests passing. 0 VMs remaining.**
