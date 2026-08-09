@@ -48,6 +48,14 @@ func resolveSize(size string) (int64, int64, error) {
 	return s.PackageID, s.PricingID, nil
 }
 
+func resolveSizeFull(size string) (pkgID, priceID, cpu, ramMB int64, diskGB int64, line string, dailyPrice float64, err error) {
+	s, ok := sizeMap[size]
+	if !ok {
+		return 0, 0, 0, 0, 0, "", 0, fmt.Errorf("unknown size '%s'", size)
+	}
+	return s.PackageID, s.PricingID, s.CPU, s.RamMB, s.DiskGB, s.Line, s.DailyPrice, nil
+}
+
 func resolveSpecs(cpu, ramMB, diskGB int64, line string) (int64, int64, error) {
 	lineRank := map[string]int{"nvme": 0, "ssd": 1, "hdd": 2, "dev": 3}
 	var best *sizeEntry

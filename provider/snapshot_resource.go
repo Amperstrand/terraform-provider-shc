@@ -135,7 +135,7 @@ func (r *snapshotResource) Create(ctx context.Context, req resource.CreateReques
 			resp.Diagnostics.AddError(storageUnsupportedSummary, storageUnsupportedDetail)
 			return
 		}
-		resp.Diagnostics.AddError("Error creating snapshot", err.Error())
+		addSHCError(&resp.Diagnostics, "Creating snapshot", err)
 		return
 	}
 
@@ -246,7 +246,7 @@ func (r *snapshotResource) Delete(ctx context.Context, req resource.DeleteReques
 	err := r.client.DeleteSnapshot(ctx, state.ServiceID.ValueString(), state.SnapshotID.ValueString())
 	if err != nil {
 		if !strings.Contains(err.Error(), "not found") {
-			resp.Diagnostics.AddError("Error deleting snapshot", err.Error())
+			addSHCError(&resp.Diagnostics, "Destroying snapshot", err)
 			return
 		}
 	}

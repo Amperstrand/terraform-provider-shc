@@ -112,7 +112,7 @@ func (r *backupResource) Create(ctx context.Context, req resource.CreateRequest,
 			resp.Diagnostics.AddError(storageUnsupportedSummary, storageUnsupportedDetail)
 			return
 		}
-		resp.Diagnostics.AddError("Error creating backup", err.Error())
+		addSHCError(&resp.Diagnostics, "Creating backup", err)
 		return
 	}
 
@@ -221,7 +221,7 @@ func (r *backupResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	err := r.client.DeleteBackup(ctx, state.ServiceID.ValueString(), state.BackupID.ValueString())
 	if err != nil {
 		if !strings.Contains(err.Error(), "not found") {
-			resp.Diagnostics.AddError("Error deleting backup", err.Error())
+			addSHCError(&resp.Diagnostics, "Destroying backup", err)
 			return
 		}
 	}

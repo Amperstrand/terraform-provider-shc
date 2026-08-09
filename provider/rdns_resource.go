@@ -106,7 +106,7 @@ func (r *rdnsResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 	rdnsResp, err := r.client.SetReverseDNS(ctx, plan.ServiceID.ValueString(), plan.IP.ValueString(), plan.Hostname.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Error creating rDNS record", err.Error())
+		addSHCError(&resp.Diagnostics, "Creating rDNS", err)
 		return
 	}
 

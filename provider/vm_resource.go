@@ -158,7 +158,8 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			"ssh_key": resourceschema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "SSH public key to apply to the VPS after provisioning.",
+				WriteOnly:   true,
+				Description: "SSH public key to apply to the VPS after provisioning. Write-only: not stored in state.",
 			},
 			"auto_cancel": resourceschema.BoolAttribute{
 				Optional:    true,

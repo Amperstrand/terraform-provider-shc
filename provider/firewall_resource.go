@@ -168,7 +168,7 @@ func (r *firewallRuleResource) Create(ctx context.Context, req resource.CreateRe
 
 	ruleResp, err := r.client.CreateFirewallRule(ctx, plan.ServiceID.ValueString(), body)
 	if err != nil {
-		resp.Diagnostics.AddError("Error creating firewall rule", err.Error())
+		addSHCError(&resp.Diagnostics, "Creating firewall rule", err)
 		return
 	}
 
@@ -259,7 +259,7 @@ func (r *firewallRuleResource) Delete(ctx context.Context, req resource.DeleteRe
 	err := r.client.DeleteFirewallRule(ctx, state.ServiceID.ValueString(), state.Position.ValueInt64())
 	if err != nil {
 		if !strings.Contains(err.Error(), "not found") {
-			resp.Diagnostics.AddError("Error deleting firewall rule", err.Error())
+			addSHCError(&resp.Diagnostics, "Destroying firewall rule", err)
 			return
 		}
 	}

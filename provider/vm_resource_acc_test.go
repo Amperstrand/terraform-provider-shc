@@ -11,7 +11,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 func testAccPreCheck(t *testing.T) {
@@ -42,6 +46,18 @@ func TestAccVMResource_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr("shc_vm.test", "status", "active"),
 					resource.TestCheckResourceAttr("shc_vm.test", "hostname", hostname),
 				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"shc_vm.test",
+						tfjsonpath.New("status"),
+						knownvalue.StringExact("active"),
+					),
+					statecheck.ExpectKnownValue(
+						"shc_vm.test",
+						tfjsonpath.New("hostname"),
+						knownvalue.StringExact(hostname),
+					),
+				},
 			},
 		},
 	})
@@ -65,6 +81,11 @@ func TestAccVMResource_UpdateSize(t *testing.T) {
 			},
 			{
 				Config: testAccVMResourceConfigWithSize(hostname, "nvme-2c-8gb"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("shc_vm.test", plancheck.ResourceActionUpdate),
+					},
+				},
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
 					resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),

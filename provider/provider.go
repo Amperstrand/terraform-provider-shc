@@ -100,7 +100,9 @@ func (p *SHCProvider) DataSources(_ context.Context) []func() datasource.DataSou
 }
 
 func (p *SHCProvider) Functions(_ context.Context) []func() function.Function {
-	return []func() function.Function{}
+	return []func() function.Function{
+		NewParseSizeFunction,
+	}
 }
 
 var _ provider.Provider = (*SHCProvider)(nil)

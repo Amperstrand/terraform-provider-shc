@@ -1,0 +1,43 @@
+---
+name: Scheduled Acceptance Tests
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install shc-toolkit
+        run: pip install -e .
+        working-directory: ../shc-toolkit
+      - name: Clone shc-toolkit
+        run: git clone --depth=1 https://github.com/Amperstrand/shc-toolkit.git ../shc-toolkit
+      - name: Run acceptance tests
+        env:
+          SHC_API_KEY: ${{ secrets.SHC_API_KEY }}
+          TF_ACC: "1"
+        run: go test ./provider/ -run 'TestAccVMResource_Basic$|TestAccVMResource_Import$|TestAccFirewallRuleResource_Basic$|TestAccSnapshotResource_Basic$' -v -timeout 20m
+      - name: Reap orphaned VMs
+        if: always()
+        env:
+          SHC_API_KEY: ${{ secrets.SHC_API_KEY }}
+        run: |
+          pip install shc-toolkit
+          python3 -c "
+          from shc_toolkit.client import SHCClient
+          import os
+          c = SHCClient(api_key=os.environ['SHC_API_KEY'])
+          orphans = c.reap_orphans(max_age_hours=0, dry_run=False)
+          print(f'Reaped {len(orphans)} orphaned VMs')
+          "
