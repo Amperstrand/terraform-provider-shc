@@ -25,6 +25,7 @@ type vmListItem struct {
 }
 
 type vmsDataSourceModel struct {
+	ID  types.String  `tfsdk:"id"`
 	VMs []vmListItem `tfsdk:"vms"`
 }
 
@@ -40,6 +41,10 @@ func (d *vmsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, re
 	resp.Schema = schema.Schema{
 		Description: "Lists all VMs on the SHC account. Useful for inventory tracking and cost analysis.",
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed:    true,
+				Description: "The data source ID (always 'vms').",
+			},
 			"vms": schema.ListNestedAttribute{
 				Computed:    true,
 				Description: "The list of VMs on the account.",
@@ -115,6 +120,7 @@ func (d *vmsDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp
 	}
 
 	var state vmsDataSourceModel
+	state.ID = types.StringValue("vms")
 	for _, item := range listResp.Items {
 		ip := ""
 		if len(item.IPs) > 0 {

@@ -91,3 +91,46 @@ data "shc_vm" "existing" {
 }
 `, os.Getenv("SHC_API_KEY"), hostname)
 }
+
+func TestAccDataSource_VMs(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{{
+			Config: testAccVMsDataSourceConfig(),
+			Check: resource.ComposeTestCheckFunc(
+				resource.TestCheckResourceAttrSet("data.shc_vms.all", "id"),
+			),
+		}},
+	})
+}
+
+func TestAccDataSource_Billing(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{{
+			Config: testAccBillingDataSourceConfig(),
+		}},
+	})
+}
+
+func testAccVMsDataSourceConfig() string {
+	return fmt.Sprintf(`
+provider "shc" {
+  api_key = "%s"
+}
+
+data "shc_vms" "all" {}
+`, os.Getenv("SHC_API_KEY"))
+}
+
+func testAccBillingDataSourceConfig() string {
+	return fmt.Sprintf(`
+provider "shc" {
+  api_key = "%s"
+}
+
+data "shc_billing" "current" {}
+`, os.Getenv("SHC_API_KEY"))
+}
