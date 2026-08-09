@@ -13,7 +13,9 @@
         "disk_4k_randwrite_iops": 3695,
         "disk_4k_randwrite_mbs": 14.4,
         "disk_4k_randread_iops": 4098,
-        "disk_seqwrite_mbs": 101.0
+        "disk_seqwrite_mbs": 101.0,
+        "curl_tele2_mbits": 4.1,
+        "curl_thinkbroadband_mbits": 4.2
       }
     },
     {
@@ -27,7 +29,9 @@
         "disk_4k_randwrite_iops": 3191,
         "disk_4k_randwrite_mbs": 12.5,
         "disk_4k_randread_iops": 3661,
-        "disk_seqwrite_mbs": 122.0
+        "disk_seqwrite_mbs": 122.0,
+        "curl_tele2_mbits": 4.1,
+        "curl_thinkbroadband_mbits": 4.2
       }
     }
   ]

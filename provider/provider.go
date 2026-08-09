@@ -92,6 +92,8 @@ func (p *SHCProvider) Resources(_ context.Context) []func() resource.Resource {
 func (p *SHCProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewVMDataSource,
+		NewVMsDataSource,
+		NewBillingDataSource,
 		NewCatalogDataSource,
 		NewTemplatesDataSource,
 		NewMachineTypesDataSource,
@@ -103,6 +105,7 @@ func (p *SHCProvider) DataSources(_ context.Context) []func() datasource.DataSou
 func (p *SHCProvider) Functions(_ context.Context) []func() function.Function {
 	return []func() function.Function{
 		NewParseSizeFunction,
+		NewEstimateCostFunction,
 	}
 }
 
