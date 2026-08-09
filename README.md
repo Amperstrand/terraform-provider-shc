@@ -59,8 +59,13 @@ terraform apply
 - Confirmation flow handling: automatically resolves SHC order confirmation requests
 - Auto-cancel: optionally schedule end-of-term cancellation so VPS do not auto-renew
 - Credit safety: pre-checks account credit before ordering to prevent surprise billing
-- HTTP retry: automatic retry on 429/503 with exponential backoff + jitter
+- HTTP retry: automatic retry on 429/503 with exponential backoff + jitter (via go-retryablehttp)
 - Input validation: hostname (RFC 1123), size format, positive-integer on CPU/RAM/disk
+- Semantic equality: firewall action/protocol are case-insensitive (accept = ACCEPT)
+- Provider-defined function: `provider::shc::parse_size("nvme-2c-8gb")` returns CPU/RAM/package/pricing
+- Write-only `ssh_key`: SSH keys passed at apply time but never stored in state
+- Structured error diagnostics: SHC API errors parsed into field-level detail
+- tflog: structured logging on all resources (`TF_LOG=DEBUG`)
 - Data sources: browse the catalog, templates, and machine types
 - Import: bring existing VMs under Terraform management
 - Schema versioning: `SchemaVersion: 1` with state upgrader for future breaking changes

@@ -21,11 +21,11 @@ Manages a firewall rule on an SHC VPS instance.
 
 ### Optional
 
-- `action` (String) The firewall action: accept, drop, or reject. Defaults to accept.
+- `action` (String) The firewall action: accept, drop, or reject. Defaults to accept. Case-insensitive.
 - `direction` (String) The direction: in or out. Defaults to in.
 - `name` (String) A label or comment for the rule.
 - `port` (String) The destination port (e.g. 22, 80,443).
-- `protocol` (String) The protocol: tcp, udp, or icmp. Defaults to tcp.
+- `protocol` (String) The protocol: tcp, udp, or icmp. Defaults to tcp. Case-insensitive.
 - `source` (String) The source CIDR. Defaults to 0.0.0.0/0.
 
 ### Read-Only

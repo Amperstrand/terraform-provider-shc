@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-09
+
 ### Added
 - `id` computed attribute on VM, Snapshot, Firewall resources (enables import)
 - UseStateForUnknown plan modifiers on VM computed attributes (ip, service_id, os_user)

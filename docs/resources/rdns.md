@@ -17,9 +17,12 @@ Manages reverse DNS (PTR record) for an IP address on an SHC VPS instance.
 
 ### Required
 
-- `hostname` (String) The FQDN to set as the PTR record.
 - `ip` (String) The IP address to set reverse DNS for.
 - `service_id` (String) The SHC service ID of the VPS.
+
+### Optional
+
+- `hostname` (String) The FQDN to set as the PTR record.
 
 ### Read-Only
 
