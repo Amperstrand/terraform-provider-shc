@@ -1,99 +1,59 @@
 # SHC VM Performance Benchmarks
 
-**Date**: 2026-08-08
-**Provider version**: terraform-provider-shc v0.2.0+
-**Methodology**: sysbench 1.0.20 (CPU), fio 3.33 (4K random + sequential disk I/O)
+**Date**: 2026-08-09
+**Provider version**: terraform-provider-shc v0.3.0
+**Methodology**: sysbench 1.0.20 (CPU), fio 3.33 (4K random read/write + sequential write)
 
 ## ⚠️ Preliminary Results Disclaimer
 
-These are **preliminary, single-run benchmarks** on SHC NVMe VPS plans. Results reflect a
-specific point in time and are affected by:
+These are **preliminary, single-run benchmarks** on SHC NVMe VPS plans in Katy, TX.
+Results reflect a specific point in time and are affected by:
 
-- **Shared hardware**: VPS plans share physical hosts. Neighbor noise (noisy neighbors)
-  affects performance. A single run cannot capture this variance.
-- **Single run**: No averaging across multiple runs. Production-grade benchmarks use
-  5-10 runs with median reporting.
-- **No network test this run**: iperf3/curl network benchmarks were not included due to
-  time constraints. See prior results in git history for network data.
-- **No random read test**: Only random write was tested. Random read is equally important
-  for database workloads.
-- **Geographic limitation**: All VMs are in Katy, TX. No cross-zone comparison.
+- **Shared hardware**: VPS plans share physical hosts. Neighbor noise affects performance.
+- **Single run**: No averaging across multiple runs.
+- **NVMe zone only**: SSD and Dev plans (Cherryvale, KS) were not benchmarked due to
+  zone provisioning issues (issue #28 on shc-toolkit). These will be added when the zone recovers.
+- **No network test**: iperf3 was not included in this run (speed test servers are in Europe,
+  geographic distance from Katy, TX depresses results).
 
-For production planning, run your own benchmarks with:
+For production planning, run the included benchmark script:
 ```bash
-sudo apt-get install -y sysbench fio iperf3
-sysbench --test=cpu --cpu-max-prime=20000 run
-fio --name=rw --ioengine=libaio --iodepth=1 --rw=randwrite --bs=4k --direct=1 --size=64M --runtime=60 --time_based
+SHC_API_KEY=shc_live_... ./scripts/benchmark.sh nvme-1c-4gb nvme-2c-8gb
 ```
 
 ## Results
 
-| Plan | Location | CPU (sysbench) | 4K Random Write | Sequential Write |
-|------|----------|---------------|-----------------|-----------------|
-| NVMe Starter (1c/4gb) | Katy-TX | 1,097 events/s | 3,555 IOPS (13.9 MB/s) | 96.6 MB/s |
-| NVMe Standard (2c/8gb) | Katy-TX | 1,126 events/s | 3,461 IOPS (13.5 MB/s) | 107.0 MB/s |
+| Plan | CPU (sysbench) | 4K Random Write | 4K Random Read | Sequential Write |
+|------|---------------|-----------------|-----------------|-----------------|
+| NVMe Starter (1c/4gb) | 1,088 events/s | 3,695 IOPS (14.4 MB/s) | 4,098 IOPS | 101.0 MB/s |
+| NVMe Standard (2c/8gb) | 1,090 events/s | 3,191 IOPS (12.4 MB/s) | 3,661 IOPS | 122.0 MB/s |
 
-### Context for interpreting these numbers
+### Context
 
-- **CPU ~1,100 events/s**: This is the sysbench CPU prime benchmark. For context, a dedicated
-  modern x86 core typically scores 2,000-4,000 events/s. VPS shared cores score lower due to
-  CPU time sharing. Both SHC plans perform similarly (~1,100), suggesting the same physical
-  CPU is backing both — the 2c plan gets more scheduled time but not a faster clock.
+- **CPU ~1,090 events/s**: Shared vCPU. Dedicated modern x86 cores score 2,000-4,000.
+  Both plans score similarly, suggesting same physical CPU backing.
+- **4K random write ~3,200-3,700 IOPS**: Solid for NVMe-backed VPS. Suitable for
+  database workloads. Comparable to mid-range dedicated SSDs.
+- **4K random read ~3,700-4,100 IOPS**: Read performance slightly exceeds write,
+  consistent with NVMe characteristics.
+- **Sequential write ~100-122 MB/s**: NVMe Standard is ~20% faster, likely due to
+  more available CPU for I/O processing.
 
-- **4K random write ~3,500 IOPS**: This is the most important metric for database workloads.
-  3,500 IOPS is solid for an NVMe-backed VPS — comparable to mid-range dedicated SSDs.
-  Both plans show similar IOPS, suggesting the same underlying NVMe storage.
+### Plans not tested
 
-- **Sequential write ~100 MB/s**: Good for file operations. The NVMe Standard is slightly
-  faster (107 vs 97 MB/s), likely due to more available CPU for I/O processing.
+| Plan | Zone | Reason |
+|------|------|--------|
+| SSD Starter (1c/4gb) | Cherryvale-KS | Zone provisioning timeout (issue #28) |
+| HDD Starter (1c/4gb) | Unknown | Not tested (cost control) |
+| Dev Starter (1c/4gb) | Cherryvale-KS | Zone broken (issue #28) |
 
-## What changed from prior benchmarks
+## Raw data
 
-Prior benchmarks used `dd` (memory bandwidth proxy for CPU, no cache-drop for disk).
-These results use proper industry-standard tools:
-- **sysbench** for CPU (actual prime calculation, not memory copy)
-- **fio** for disk (direct I/O, proper queue depth, runtime-based)
+See [results.json](results.json) for the complete JSON output.
 
 ## Reproducing
 
 ```bash
 export SHC_API_KEY="shc_live_..."
-pip install shc-toolkit paramiko
-
-python3 -c "
-from shc_toolkit.client import SHCClient
-import time, paramiko
-
-c = SHCClient()
-vm = c.order_vm(hostname='test-bench', size='nvme-2c-8gb',
-                template='debian12-cloud', auto_cancel=True, pay=True,
-                ssh_key=open('$HOME/.ssh/id_ed25519.pub').read().strip())
-sid = str(vm.get('id') or vm.get('service_id'))
-
-for _ in range(30):
-    time.sleep(10)
-    info = c.get_vm(sid)
-    if info.get('service_status') == 'active' and info.get('ips'):
-        ip = info['ips'][0]['ip']; break
-
-time.sleep(40)
-ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect(ip, username='debian', key_filename='$HOME/.ssh/id_ed25519')
-ssh.exec_command('sudo apt-get update -qq && sudo apt-get install -y -qq sysbench fio')
-time.sleep(25)
-
-# CPU
-_, o, _ = ssh.exec_command('sysbench --test=cpu --cpu-max-prime=10000 run 2>&1')
-print(o.read().decode())
-
-# Disk 4K random write
-_, o, _ = ssh.exec_command('fio --name=rw --ioengine=libaio --iodepth=1 --rw=randwrite --bs=4k --direct=1 --size=64M --runtime=20 --time_based --group_reporting 2>&1')
-print(o.read().decode())
-
-ssh.close()
-c.cancel_vm(sid, immediate=True)
-"
+./scripts/benchmark.sh nvme-1c-4gb nvme-2c-8gb
 ```
-
-Raw JSON results: [results.json](results.json)

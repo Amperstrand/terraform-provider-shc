@@ -1,31 +1,33 @@
 {
-  "date": "2026-08-08",
-  "methodology": "sysbench CPU, fio 4K random + sequential disk. Tools: sysbench 1.0.20, fio 3.33. 1 run per plan. NVMe plans in Katy-TX.",
+  "date": "2026-08-09",
+  "methodology": "sysbench CPU, fio 4K random read+write, sequential write. Tools: sysbench 1.0.20, fio 3.33. 1 run per plan.",
   "results": [
     {
       "size": "nvme-1c-4gb",
       "label": "NVMe Starter",
       "status": "ok",
-      "ready_after_seconds": 74,
+      "ready_after_seconds": 85,
       "ip": "23.182.128.77",
       "benchmarks": {
-        "cpu_sysbench_events_per_sec": 1097.4,
-        "disk_4k_randwrite_iops": 3555,
-        "disk_4k_randwrite_mbs": 13.9,
-        "disk_seqwrite_mbs": 96.6
+        "cpu_sysbench_events_per_sec": 1087.8,
+        "disk_4k_randwrite_iops": 3695,
+        "disk_4k_randwrite_mbs": 14.4,
+        "disk_4k_randread_iops": 4098,
+        "disk_seqwrite_mbs": 101.0
       }
     },
     {
       "size": "nvme-2c-8gb",
       "label": "NVMe Standard",
       "status": "ok",
-      "ready_after_seconds": 85,
+      "ready_after_seconds": 42,
       "ip": "23.182.128.77",
       "benchmarks": {
-        "cpu_sysbench_events_per_sec": 1126.0,
-        "disk_4k_randwrite_iops": 3461,
-        "disk_4k_randwrite_mbs": 13.5,
-        "disk_seqwrite_mbs": 107.0
+        "cpu_sysbench_events_per_sec": 1089.8,
+        "disk_4k_randwrite_iops": 3191,
+        "disk_4k_randwrite_mbs": 12.5,
+        "disk_4k_randread_iops": 3661,
+        "disk_seqwrite_mbs": 122.0
       }
     }
   ]
