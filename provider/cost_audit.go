@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	minChargeHours   = 1.0
-	hourlyPrecision  = 4
-	priceTolerance   = 0.01
+	minChargeHours  = 1.0
+	hourlyPrecision = 4
+	priceTolerance  = 0.01
 )
 
 func truncateFloat(amount float64, decimals int) float64 {
@@ -211,14 +211,14 @@ func (t *CostTracker) SessionReport(serviceID int64) map[string]interface{} {
 	expectedCost := truncateFloat(math.Max(hours, minChargeHours)*hourlyRate, 2)
 
 	report := map[string]interface{}{
-		"service_id":           session.ServiceID,
-		"package_id":           session.PackageID,
-		"daily_price":          session.DailyPrice,
-		"hourly_rate":          hourlyRate,
-		"ordered_at":           session.OrderedAt.Format(time.RFC3339),
-		"elapsed_hours":        hours,
+		"service_id":            session.ServiceID,
+		"package_id":            session.PackageID,
+		"daily_price":           session.DailyPrice,
+		"hourly_rate":           hourlyRate,
+		"ordered_at":            session.OrderedAt.Format(time.RFC3339),
+		"elapsed_hours":         hours,
 		"current_expected_cost": expectedCost,
-		"charge_verified":      session.ChargeVerified,
+		"charge_verified":       session.ChargeVerified,
 	}
 	if session.ActualCharge != nil {
 		report["actual_charge"] = *session.ActualCharge

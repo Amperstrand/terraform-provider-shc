@@ -64,7 +64,7 @@ func addSHCError(diags *diag.Diagnostics, operation string, err error) {
 		return
 	}
 	errStr := err.Error()
-	
+
 	start := strings.Index(errStr, "{")
 	if start >= 0 {
 		body := []byte(errStr[start:])

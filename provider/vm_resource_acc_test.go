@@ -130,9 +130,9 @@ func TestAccVMResource_Import(t *testing.T) {
 				),
 			},
 			{
-				ResourceName:            "shc_vm.test",
-				ImportState:             true,
-				ImportStateVerify:       true,
+				ResourceName:      "shc_vm.test",
+				ImportState:       true,
+				ImportStateVerify: true,
 				ImportStateVerifyIgnore: []string{
 					"auto_cancel", "ssh_key", "timeouts",
 					"size", "template", "package_id", "pricing_id", "power_state", "term",

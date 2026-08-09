@@ -22,7 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-)// Default timeouts applied to VM CRUD operations unless overridden by the
+) // Default timeouts applied to VM CRUD operations unless overridden by the
 // practitioner via the "timeouts" block.
 const (
 	defaultVMCreateTimeout = 10 * time.Minute
@@ -87,74 +87,74 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 	resp.Schema = resourceschema.Schema{
 		Description: "Manages a Sovereign Hybrid Compute VPS instance.",
 		Attributes: map[string]resourceschema.Attribute{
-		"id": resourceschema.StringAttribute{
-			Computed:    true,
-			Description: "The SHC service ID. Equal to service_id.",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
+			"id": resourceschema.StringAttribute{
+				Computed:    true,
+				Description: "The SHC service ID. Equal to service_id.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-		},
-		"hostname": resourceschema.StringAttribute{
-			Required:    true,
-			Description: "The hostname for the VPS instance.",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.RequiresReplace(),
+			"hostname": resourceschema.StringAttribute{
+				Required:    true,
+				Description: "The hostname for the VPS instance.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					hostname(),
+				},
 			},
-			Validators: []validator.String{
-				hostname(),
+			"package_id": resourceschema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The SHC package ID. Use `data shc_catalog` to discover valid values, or use `size` for a human-readable alias. Changing this triggers an in-place upgrade; only upgrades (more CPU/RAM/disk) are supported by the SHC API.",
+				PlanModifiers: []planmodifier.Int64{
+					packageIDUpgrade(),
+				},
+				Validators: []validator.Int64{
+					positiveInt64(),
+				},
 			},
-		},
-		"package_id": resourceschema.Int64Attribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "The SHC package ID. Use `data shc_catalog` to discover valid values, or use `size` for a human-readable alias. Changing this triggers an in-place upgrade; only upgrades (more CPU/RAM/disk) are supported by the SHC API.",
-			PlanModifiers: []planmodifier.Int64{
-				packageIDUpgrade(),
+			"pricing_id": resourceschema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The SHC pricing ID for the chosen package. Use `data shc_catalog` to discover valid values, or use `size` for a human-readable alias. Changing this triggers an in-place upgrade via the SHC upgrade API.",
+				Validators: []validator.Int64{
+					positiveInt64(),
+				},
 			},
-			Validators: []validator.Int64{
-				positiveInt64(),
+			"size": resourceschema.StringAttribute{
+				Optional:    true,
+				Description: "Spec-encoding size name: {line}-{cpu}c-{ram}gb (e.g. nvme-2c-8gb, hdd-1c-4gb, ssd-4c-16gb, dev-8c-32gb). Takes precedence over package_id/pricing_id when both are set.",
+				Validators: []validator.String{
+					sizeValidatorFn(),
+				},
 			},
-		},
-		"pricing_id": resourceschema.Int64Attribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "The SHC pricing ID for the chosen package. Use `data shc_catalog` to discover valid values, or use `size` for a human-readable alias. Changing this triggers an in-place upgrade via the SHC upgrade API.",
-			Validators: []validator.Int64{
-				positiveInt64(),
+			"disk_gb": resourceschema.Int64Attribute{
+				Optional:    true,
+				Description: "Override total disk in GB. Resolved to the package's config option at order time. Must be an available value for the selected plan.",
+				Validators: []validator.Int64{
+					positiveInt64(),
+				},
 			},
-		},
-		"size": resourceschema.StringAttribute{
-			Optional:    true,
-			Description: "Spec-encoding size name: {line}-{cpu}c-{ram}gb (e.g. nvme-2c-8gb, hdd-1c-4gb, ssd-4c-16gb, dev-8c-32gb). Takes precedence over package_id/pricing_id when both are set.",
-			Validators: []validator.String{
-				sizeValidatorFn(),
+			"ram_mb": resourceschema.Int64Attribute{
+				Optional:    true,
+				Description: "Override total RAM in MB. Resolved to the package's config option at order time.",
+				Validators: []validator.Int64{
+					positiveInt64(),
+				},
 			},
-		},
-		"disk_gb": resourceschema.Int64Attribute{
-			Optional: true,
-			Description: "Override total disk in GB. Resolved to the package's config option at order time. Must be an available value for the selected plan.",
-			Validators: []validator.Int64{
-				positiveInt64(),
+			"cpu": resourceschema.Int64Attribute{
+				Optional:    true,
+				Description: "Override total vCPU cores. Resolved to the package's config option at order time.",
+				Validators: []validator.Int64{
+					positiveInt64(),
+				},
 			},
-		},
-		"ram_mb": resourceschema.Int64Attribute{
-			Optional: true,
-			Description: "Override total RAM in MB. Resolved to the package's config option at order time.",
-			Validators: []validator.Int64{
-				positiveInt64(),
+			"template": resourceschema.StringAttribute{
+				Optional:    true,
+				Description: "OS template slug (e.g. debian12-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.",
 			},
-		},
-		"cpu": resourceschema.Int64Attribute{
-			Optional: true,
-			Description: "Override total vCPU cores. Resolved to the package's config option at order time.",
-			Validators: []validator.Int64{
-				positiveInt64(),
-			},
-		},
-		"template": resourceschema.StringAttribute{
-			Optional: true,
-			Description: "OS template slug (e.g. debian12-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.",
-		},
 			"ssh_key": resourceschema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
@@ -167,19 +167,19 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				Description: "If true (default), schedules an end-of-term cancellation so the VPS does not auto-renew.",
 				Default:     booldefault.StaticBool(true),
 			},
-		"power_state": resourceschema.StringAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "The desired power state: `running` or `stopped`. Defaults to `running`. Changing this triggers a start/stop action without replacing the VM.",
-			Default:     stringdefault.StaticString("running"),
-			Validators: []validator.String{
-				powerState(),
+			"power_state": resourceschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The desired power state: `running` or `stopped`. Defaults to `running`. Changing this triggers a start/stop action without replacing the VM.",
+				Default:     stringdefault.StaticString("running"),
+				Validators: []validator.String{
+					powerState(),
+				},
 			},
-		},
-	"term": resourceschema.Int64Attribute{
-			Optional:    true,
-			Description: "Billing term (pricing_id of the desired term, e.g. 56=daily, 57=weekly, 58=monthly). Changing this triggers a term change. Use `shc info <service_id>` or GET /vm/{id}/term-options to see available terms. If unset, the API default (monthly) is used.",
-		},
+			"term": resourceschema.Int64Attribute{
+				Optional:    true,
+				Description: "Billing term (pricing_id of the desired term, e.g. 56=daily, 57=weekly, 58=monthly). Changing this triggers a term change. Use `shc info <service_id>` or GET /vm/{id}/term-options to see available terms. If unset, the API default (monthly) is used.",
+			},
 			"ip": resourceschema.StringAttribute{
 				Computed:    true,
 				Description: "The primary IP address of the VPS.",
@@ -205,10 +205,10 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				Computed:    true,
 				Description: "The current service status of the VPS.",
 			},
-		"provisioning_state": resourceschema.StringAttribute{
-			Computed:    true,
-			Description: "The provisioning state of the VPS (e.g. ready, provisioning).",
-		},
+			"provisioning_state": resourceschema.StringAttribute{
+				Computed:    true,
+				Description: "The provisioning state of the VPS (e.g. ready, provisioning).",
+			},
 		},
 		Blocks: map[string]resourceschema.Block{
 			"timeouts": resourceschema.SingleNestedBlock{

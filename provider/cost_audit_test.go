@@ -32,8 +32,8 @@ func TestProrationFormula(t *testing.T) {
 	hourly := roundToPrecision(daily/24, hourlyPrecision)
 
 	tests := []struct {
-		hours         float64
-		expectedCost  float64
+		hours          float64
+		expectedCost   float64
 		expectedRefund float64
 	}{
 		{1.0, 0.01, 0.45},
@@ -152,10 +152,10 @@ func TestCostTrackerCurrentBurn(t *testing.T) {
 	tracker := client.costTracker
 
 	session := &CostSession{
-		ServiceID:    123,
-		PackageID:    26,
-		DailyPrice:   0.49,
-		OrderedAt:    time.Now().UTC().Add(-3 * time.Hour),
+		ServiceID:  123,
+		PackageID:  26,
+		DailyPrice: 0.49,
+		OrderedAt:  time.Now().UTC().Add(-3 * time.Hour),
 	}
 	tracker.sessions[123] = session
 
@@ -181,9 +181,9 @@ func TestCostReportNetCost(t *testing.T) {
 	charge := 0.49
 	refund := 0.37
 	report := &CostReport{
-		DailyPrice:    0.49,
-		ActualCharge:  &charge,
-		ActualRefund:  &refund,
+		DailyPrice:   0.49,
+		ActualCharge: &charge,
+		ActualRefund: &refund,
 	}
 	expected := 0.49 - 0.37
 	if report.NetCost() != expected {

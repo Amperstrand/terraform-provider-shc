@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
@@ -15,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 type firewallRuleResource struct {
@@ -22,15 +22,15 @@ type firewallRuleResource struct {
 }
 
 type firewallRuleResourceModel struct {
-	ID        types.String `tfsdk:"id"`
-	ServiceID types.String `tfsdk:"service_id"`
+	ID        types.String               `tfsdk:"id"`
+	ServiceID types.String               `tfsdk:"service_id"`
 	Action    CaseInsensitiveStringValue `tfsdk:"action"`
 	Protocol  CaseInsensitiveStringValue `tfsdk:"protocol"`
-	Port      types.String `tfsdk:"port"`
-	Source    types.String `tfsdk:"source"`
-	Direction types.String `tfsdk:"direction"`
-	Name      types.String `tfsdk:"name"`
-	Position  types.Int64  `tfsdk:"position"`
+	Port      types.String               `tfsdk:"port"`
+	Source    types.String               `tfsdk:"source"`
+	Direction types.String               `tfsdk:"direction"`
+	Name      types.String               `tfsdk:"name"`
+	Position  types.Int64                `tfsdk:"position"`
 }
 
 func NewFirewallRuleResource() resource.Resource {
