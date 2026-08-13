@@ -124,7 +124,7 @@ The API key is treated as sensitive and will not appear in plan or state output.
 
 ### shc_vm
 
-Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submitting an order with the specified package and pricing, then polled until it reaches the `ready` state.
+Manages a Sovereign Hybrid Compute VPS instance. The VM is provisioned by submitting an order with the specified package and pricing, then polled until `service_status == "active"` and an IP is assigned (SHC VMs may report `provisioning_state: "provisioning"` indefinitely — see Known Limitations).
 
 | Argument      | Type   | Required | Description |
 |---------------|--------|----------|-------------|
@@ -156,7 +156,7 @@ resource "shc_vm" "web" {
 }
 ```
 
-Available sizes: `nvme-1c-4gb`, `nvme-2c-8gb`, `nvme-4c-16gb`, `hdd-2c-4gb`, `ssd-4c-16gb`, `dev-8c-32gb` (spec-encoding).
+Available sizes: `nvme-1c-4gb`, `nvme-2c-8gb`, `nvme-4c-16gb`, `nvme-8c-32gb`, `nvme-16c-64gb`, `ssd-1c-4gb`, `ssd-2c-8gb`, `ssd-4c-16gb`, `ssd-8c-32gb`, `ssd-16c-64gb`, `hdd-1c-4gb`, `hdd-2c-8gb`, `hdd-4c-16gb`, `hdd-8c-32gb`, `hdd-16c-64gb`, `dev-1c-4gb`, `dev-2c-8gb`, `dev-4c-16gb`, `dev-8c-32gb`, `dev-16c-64gb` (spec-encoding).
 
 #### In-place upgrade
 

@@ -83,3 +83,12 @@ func resolveSpecs(cpu, ramMB, diskGB int64, line string) (int64, int64, error) {
 	}
 	return best.PackageID, best.PricingID, nil
 }
+
+func dailyPriceForPackage(packageID int64) (float64, bool) {
+	for _, s := range sizeMap {
+		if s.PackageID == packageID {
+			return s.DailyPrice, true
+		}
+	}
+	return 0, false
+}

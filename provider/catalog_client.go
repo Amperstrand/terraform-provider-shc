@@ -64,28 +64,8 @@ func (c *SHCClient) SafeCredit(ctx context.Context) float64 {
 }
 
 func (c *SHCClient) EstimateDailyCost(ctx context.Context, packageID int64) float64 {
-	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/ordering/catalog", nil, "")
-	if err != nil || statusCode >= 400 {
-		return 0
-	}
-
-	unwrapped := unwrapData(respBody)
-	var catalogResp struct {
-		Items []CatalogPackageResponse `json:"items"`
-	}
-	if err := json.Unmarshal(unwrapped, &catalogResp); err != nil {
-		return 0
-	}
-
-	for _, pkg := range catalogResp.Items {
-		if pkg.PackageID == packageID {
-			for _, p := range pkg.Pricing {
-				if p.Period == "day" {
-					f, _ := strconv.ParseFloat(p.Price.String(), 64)
-					return f
-				}
-			}
-		}
+	if price, ok := dailyPriceForPackage(packageID); ok {
+		return price
 	}
 	return 0
 }
