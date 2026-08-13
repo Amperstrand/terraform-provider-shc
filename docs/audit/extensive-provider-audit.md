@@ -1,3 +1,6 @@
+> **⚠️ Historical document (2026-08-07).** This audit reflects the pre-v0.4.0 codebase.
+> Many issues identified here have been resolved. See `AGENTS.md` for current guidance.
+
 # Extensive Provider Audit: Best Practices, Patterns, and Gaps
 
 **Date**: 2026-08-07
