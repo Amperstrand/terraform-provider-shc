@@ -39,7 +39,7 @@ Manages a firewall rule on an SHC VPS instance.
 resource "shc_vm" "app" {
   hostname = "app"
   size     = "nvme-1c-4gb"
-  template = "debian12-cloud"
+  template = "debian13-cloud"
 }
 
 # Allow SSH from anywhere

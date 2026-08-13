@@ -36,7 +36,7 @@ Manages a snapshot of an SHC VPS.
 resource "shc_vm" "db" {
   hostname = "database"
   size     = "nvme-2c-8gb"
-  template = "debian12-cloud"
+  template = "debian13-cloud"
 }
 
 resource "shc_snapshot" "pre_deploy" {

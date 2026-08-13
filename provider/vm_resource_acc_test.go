@@ -104,7 +104,7 @@ func TestAccVMResource_WithTemplate(t *testing.T) {
 		CheckDestroy:             testAccCheckVMDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccVMResourceConfigWithTemplate(hostname, "debian12-cloud"),
+				Config: testAccVMResourceConfigWithTemplate(hostname, "debian13-cloud"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("shc_vm.test", "service_id"),
 					resource.TestCheckResourceAttrSet("shc_vm.test", "ip"),
@@ -195,7 +195,7 @@ provider "shc" {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 `, os.Getenv("SHC_API_KEY"), hostname)
@@ -210,7 +210,7 @@ provider "shc" {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "%s"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = false
 }
 `, os.Getenv("SHC_API_KEY"), hostname, size)
@@ -342,7 +342,7 @@ provider "shc" {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   power_state = "%s"
   auto_cancel = true
 }
@@ -358,7 +358,7 @@ provider "shc" {
 resource "shc_vm" "test" {
   hostname    = "tf-acc-test-edge"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   %s          = %s
   auto_cancel = true
 }

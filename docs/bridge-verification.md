@@ -13,7 +13,7 @@ The Pulumi ↔ Terraform Bridge path has been verified end-to-end. A real VM was
 - Pulumi CLI: v3.248.0
 - Provider: terraform-provider-shc v0.2.0 (built from source)
 - SDK language: Python (`pulumi_shc`)
-- VM spec: NVMe Starter (nvme-1c-4gb), debian12-cloud, Katy-TX
+- VM spec: NVMe Starter (nvme-1c-4gb), debian13-cloud, Katy-TX
 - Hostname: test-bridge-e2e
 
 ## Results
@@ -58,7 +58,7 @@ import pulumi_shc as shc
 vm = shc.Vm("my-vm",
     hostname="my-vm",
     size="nvme-1c-4gb",
-    template="debian12-cloud",
+    template="debian13-cloud",
     auto_cancel=True,
 )
 
@@ -101,7 +101,7 @@ the template itself or by the Dev zone (Cherryvale-KS, #28).
 | Template | Zone | Plan | Provision | SSH Port 22 |
 |----------|------|------|-----------|-------------|
 | debian13-cloud | Katy-TX | NVMe Starter (1c/4gb) | 53s | ✅ REACHABLE |
-| debian12-cloud | Katy-TX | NVMe Starter (1c/4gb) | 96s | ✅ REACHABLE |
+| debian13-cloud | Katy-TX | NVMe Starter (1c/4gb) | 96s | ✅ REACHABLE |
 
 **Conclusion**: debian13-cloud works perfectly in Katy-TX. The cloud-init
 deadlock (#24) is **NOT a template issue** — it's a **Dev zone (Cherryvale-KS) issue**.

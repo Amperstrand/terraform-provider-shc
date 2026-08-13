@@ -34,7 +34,7 @@ Manages reverse DNS (PTR record) for an IP address on an SHC VPS instance.
 resource "shc_vm" "mail" {
   hostname = "mail"
   size     = "nvme-2c-8gb"
-  template = "debian12-cloud"
+  template = "debian13-cloud"
 }
 
 # Set reverse DNS — hostname must have a forward A record pointing

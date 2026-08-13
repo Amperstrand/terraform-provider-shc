@@ -32,7 +32,7 @@ Manages a Sovereign Hybrid Compute VPS instance.
 - `ram_mb` (Number) Override total RAM in MB. Resolved to the package's config option at order time.
 - `size` (String) Spec-encoding size name: {line}-{cpu}c-{ram}gb (e.g. nvme-2c-8gb, hdd-1c-4gb, ssd-4c-16gb, dev-8c-32gb). Takes precedence over package_id/pricing_id when both are set.
 - `ssh_key` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) SSH public key to apply to the VPS after provisioning. Write-only: not stored in state.
-- `template` (String) OS template slug (e.g. debian12-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.
+- `template` (String) OS template slug (e.g. debian13-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.
 - `term` (Number) Billing term (pricing_id of the desired term, e.g. 56=daily, 57=weekly, 58=monthly). Changing this triggers a term change. Use `shc info <service_id>` or GET /vm/{id}/term-options to see available terms. If unset, the API default (monthly) is used.
 - `timeouts` (Block, Optional) Customizable timeouts for VM operations. Durations are parsed as Go duration strings (e.g. 10m, 1h). (see [below for nested schema](#nestedblock--timeouts))
 
@@ -63,7 +63,7 @@ Optional:
 resource "shc_vm" "web" {
   hostname    = "web-server"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 
   timeouts {

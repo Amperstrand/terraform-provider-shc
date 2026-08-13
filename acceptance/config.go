@@ -20,7 +20,7 @@ func VMConfigBasic(hostname string) string {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 `, ProviderConfig(), hostname)
@@ -33,7 +33,7 @@ func VMConfigWithSize(hostname, size string) string {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "%s"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 `, ProviderConfig(), hostname, size)
@@ -59,7 +59,7 @@ func VMConfigUpdated(hostname string) string {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-2c-8gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 `, ProviderConfig(), hostname)
@@ -72,7 +72,7 @@ func VMConfigPowerState(hostname, state string) string {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   power_state = "%s"
   auto_cancel = true
 }
@@ -124,7 +124,7 @@ func SnapshotConfig(hostname, snapshotName string) string {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 
@@ -142,7 +142,7 @@ func FirewallConfig(hostname string) string {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 
@@ -165,7 +165,7 @@ func RDNSConfig(hostname string) string {
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 

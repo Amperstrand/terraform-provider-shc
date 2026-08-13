@@ -110,7 +110,7 @@ provider "shc" { api_key = "%s" }
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 
@@ -128,7 +128,7 @@ provider "shc" { api_key = "%s" }
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 
@@ -151,7 +151,7 @@ provider "shc" { api_key = "%s" }
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 
@@ -174,7 +174,7 @@ provider "shc" { api_key = "%s" }
 resource "shc_vm" "test" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 
@@ -317,7 +317,7 @@ provider "shc" { api_key = "%s" }
 resource "shc_vm" "app" {
   hostname    = "%s"
   size        = "nvme-1c-4gb"
-  template    = "debian12-cloud"
+  template    = "debian13-cloud"
   auto_cancel = true
 }
 

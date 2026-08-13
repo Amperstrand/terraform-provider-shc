@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+- **sizes.go regenerated from shc-toolkit catalog model.** Generated via `python3 ../shc-toolkit/scripts/generate_sizes.py --format go --output provider/sizes.go`. Prices now match the live API exactly (20/20) using the model's Decimal arithmetic (NVMe rate = 1/512 per GB, ROUND_HALF_UP). HDD Enterprise override: $3.53.
+- **debian13-cloud is the default template everywhere.** Tests, docs, and examples previously used debian12-cloud based on a misdiagnosed cloud-init deadlock (issue #24). The actual problem was the Dev zone scheduler hang (issue #28). debian13-cloud works correctly on NVMe/SSD/HDD VPS in Katy, TX.
+
 ## [0.4.0] — 2026-08-09
 
 ### Added

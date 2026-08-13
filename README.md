@@ -332,8 +332,7 @@ data "shc_vm" "existing" {
 
 ## Known Limitations
 
-- **Dev zone (Cherryvale, KS) provisioning**: Dev VPS plans (pkg 80–84) may experience provisioning delays or failures. This is an SHC platform issue, not a provider bug. NVMe/SSD/HDD plans in Katy-TX are unaffected. Track via [issue #28](https://github.com/Amperstrand/shc-toolkit/issues/28).
-- **debian13-cloud template**: The `debian13-cloud` template's cloud-init may deadlock (sshd never starts). Use `debian12-cloud` or `ubuntu2404-cloud` instead. See [issue #24](https://github.com/Amperstrand/shc-toolkit/issues/24).
+- **Dev zone (Cherryvale, KS) provisioning**: Dev VPS plans (pkg 80–84) may fail to provision — the scheduler never assigns an IP. This is an SHC platform issue (issue #28), not a provider bug. NVMe/SSD/HDD plans in Katy, TX work correctly with all templates including `debian13-cloud`. **Still broken as of 2026-08-13.**
 - **Snapshot/backup limit**: All VPS plans (including Dev VPS) support 1 snapshot and 1 backup concurrently.
 - **Provisioning state**: SHC VMs may report `provisioning_state: "provisioning"` indefinitely even when fully operational. The provider detects readiness via `service_status == "active" && ip assigned`.
 

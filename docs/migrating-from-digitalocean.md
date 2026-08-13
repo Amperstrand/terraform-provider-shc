@@ -212,7 +212,7 @@ image = "ubuntu-22-04-x64"
 
 # SHC - the template is selected during ordering
 # Use option 126 for Dev VPS, option 174 for NVMe/SSD/HDD
-# Values include: debian13-cloud, debian12-cloud, ubuntu2404-cloud, etc.
+# Values include: debian13-cloud, debian13-cloud, ubuntu2404-cloud, etc.
 ```
 
 The template is specified when ordering via the SHC API, but the Terraform provider does not expose this option. Templates are selected through the SHC web console or API.

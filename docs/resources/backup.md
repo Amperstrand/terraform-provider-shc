@@ -35,7 +35,7 @@ Manages a backup of an SHC VPS.
 resource "shc_vm" "app" {
   hostname = "app"
   size     = "nvme-1c-4gb"
-  template = "debian12-cloud"
+  template = "debian13-cloud"
 }
 
 resource "shc_backup" "weekly" {

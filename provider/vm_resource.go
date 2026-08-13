@@ -153,7 +153,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			},
 		"template": resourceschema.StringAttribute{
 			Optional:    true,
-			Description: "OS template slug (e.g. debian12-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.",
+			Description: "OS template slug (e.g. debian13-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.",
 			Validators: []validator.String{
 				template(),
 			},
