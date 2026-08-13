@@ -219,33 +219,10 @@ func (c *SHCClient) handleConfirmation(ctx context.Context, method, path string,
 }
 
 func (c *SHCClient) resolveOrderFormID(ctx context.Context, packageID int64) (int64, error) {
-	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, "/ordering/catalog", nil, "")
-	if err != nil {
-		return 0, fmt.Errorf("fetching catalog for order_form_id: %w", err)
+	if formID, ok := orderFormIDForPackage(packageID); ok {
+		return formID, nil
 	}
-	if statusCode >= 400 {
-		return 0, fmt.Errorf("catalog fetch failed (status %d)", statusCode)
-	}
-
-	var catalogResp struct {
-		Items []struct {
-			PackageID   flexibleString `json:"package_id"`
-			OrderFormID flexibleString `json:"order_form_id"`
-		} `json:"items"`
-	}
-
-	unwrapped := unwrapData(respBody)
-	if err := json.Unmarshal(unwrapped, &catalogResp); err != nil {
-		return 0, fmt.Errorf("parsing catalog for order_form_id: %w", err)
-	}
-
-	for _, item := range catalogResp.Items {
-		if item.PackageID.Int64() == packageID {
-			return item.OrderFormID.Int64(), nil
-		}
-	}
-
-	return 0, fmt.Errorf("package_id %d not found in catalog", packageID)
+	return 0, fmt.Errorf("package_id %d not found in static size map", packageID)
 }
 
 type SweepVM struct {

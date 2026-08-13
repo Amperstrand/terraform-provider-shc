@@ -55,16 +55,6 @@ func TestSubmitOrder_ConfirmationFlow(t *testing.T) {
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
-		if r.URL.Path == "/ordering/catalog" && r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"data": map[string]interface{}{
-					"items": []map[string]interface{}{
-						{"package_id": "81", "order_form_id": "11"},
-					},
-				},
-			})
-			return
-		}
 		// POST /ordering/submit without confirm → 409
 		if r.URL.Path == "/ordering/submit" && r.Header.Get("X-User-Api-Confirm") == "" {
 			w.WriteHeader(http.StatusConflict)
@@ -96,9 +86,9 @@ func TestSubmitOrder_ConfirmationFlow(t *testing.T) {
 	if order.ResolveServiceID() != "456" {
 		t.Errorf("expected service_id 456, got %s", order.ResolveServiceID())
 	}
-	// 3 calls: catalog GET + initial POST (409) + confirmation POST
-	if callCount != 3 {
-		t.Errorf("expected 3 calls, got %d", callCount)
+	// 2 calls: initial POST (409) + confirmation POST (no catalog fetch — static map)
+	if callCount != 2 {
+		t.Errorf("expected 2 calls, got %d", callCount)
 	}
 }
 
@@ -361,7 +351,7 @@ func TestCheckCredit_Sufficient(t *testing.T) {
 	}
 }
 
-func TestCheckCredit_FailsOpenOnError(t *testing.T) {
+func TestCheckCredit_FailsClosedOnError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -369,8 +359,8 @@ func TestCheckCredit_FailsOpenOnError(t *testing.T) {
 
 	client := NewSHCClient("test", server.URL)
 	err := client.CheckCredit(context.Background(), 0.50)
-	if err != nil {
-		t.Fatalf("expected nil (fail open) when balance endpoint errors, got: %v", err)
+	if err == nil {
+		t.Fatal("expected error when balance endpoint fails (fail closed)")
 	}
 }
 

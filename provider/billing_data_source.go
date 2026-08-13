@@ -15,10 +15,10 @@ type billingDataSource struct {
 }
 
 type billingModel struct {
-	Balance   types.String  `tfsdk:"balance"`
-	Credit    types.String  `tfsdk:"credit"`
-	Currency  types.String  `tfsdk:"currency"`
-	Invoices  []invoiceItem `tfsdk:"invoices"`
+	Balance  types.String  `tfsdk:"balance"`
+	Credit   types.String  `tfsdk:"credit"`
+	Currency types.String  `tfsdk:"currency"`
+	Invoices []invoiceItem `tfsdk:"invoices"`
 }
 
 type invoiceItem struct {
@@ -58,10 +58,10 @@ func (d *billingDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 				Description: "Recent invoices.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"invoice_id": schema.StringAttribute{Computed: true, Description: "The invoice ID."},
-						"status": schema.StringAttribute{Computed: true, Description: "Invoice status (open, paid, etc.)."},
-						"total": schema.StringAttribute{Computed: true, Description: "The invoice total."},
-						"date_due": schema.StringAttribute{Computed: true, Description: "Date the invoice is due."},
+						"invoice_id":   schema.StringAttribute{Computed: true, Description: "The invoice ID."},
+						"status":       schema.StringAttribute{Computed: true, Description: "Invoice status (open, paid, etc.)."},
+						"total":        schema.StringAttribute{Computed: true, Description: "The invoice total."},
+						"date_due":     schema.StringAttribute{Computed: true, Description: "Date the invoice is due."},
 						"date_created": schema.StringAttribute{Computed: true, Description: "Date the invoice was created."},
 					},
 				},
@@ -94,8 +94,10 @@ func (d *billingDataSource) Read(ctx context.Context, _ datasource.ReadRequest, 
 
 	if balStatusCode < 400 {
 		var balResp struct {
-			Credit   []struct{ Amount string `json:"amount"` } `json:"credit"`
-			Currency string                                     `json:"currency"`
+			Credit []struct {
+				Amount string `json:"amount"`
+			} `json:"credit"`
+			Currency string `json:"currency"`
 		}
 		if json.Unmarshal(unwrapData(balBody), &balResp) == nil {
 			if len(balResp.Credit) > 0 {

@@ -92,3 +92,31 @@ func dailyPriceForPackage(packageID int64) (float64, bool) {
 	}
 	return 0, false
 }
+
+var lineOrderFormIDs = map[string]int64{
+	"nvme": 1,
+	"ssd":  7,
+	"hdd":  3,
+	"dev":  11,
+}
+
+func orderFormIDForPackage(packageID int64) (int64, bool) {
+	for _, s := range sizeMap {
+		if s.PackageID == packageID {
+			if formID, ok := lineOrderFormIDs[s.Line]; ok {
+				return formID, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func minDailyPrice() float64 {
+	var min float64
+	for _, s := range sizeMap {
+		if min == 0 || s.DailyPrice < min {
+			min = s.DailyPrice
+		}
+	}
+	return min
+}

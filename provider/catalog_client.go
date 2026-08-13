@@ -35,7 +35,7 @@ func (c *SHCClient) GetBalance(ctx context.Context) (*BalanceResponse, error) {
 func (c *SHCClient) CheckCredit(ctx context.Context, minRequired float64) error {
 	bal, err := c.GetBalance(ctx)
 	if err != nil {
-		return nil
+		return fmt.Errorf("credit check failed (cannot verify balance): %w", err)
 	}
 	var available float64
 	for _, b := range bal.Balances {

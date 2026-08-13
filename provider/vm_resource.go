@@ -151,13 +151,13 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 					positiveInt64(),
 				},
 			},
-		"template": resourceschema.StringAttribute{
-			Optional:    true,
-			Description: "OS template slug (e.g. debian13-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.",
-			Validators: []validator.String{
-				template(),
+			"template": resourceschema.StringAttribute{
+				Optional:    true,
+				Description: "OS template slug (e.g. debian13-cloud, ubuntu2404-cloud). Resolved to the package's config option at order time.",
+				Validators: []validator.String{
+					template(),
+				},
 			},
-		},
 			"ssh_key": resourceschema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
@@ -328,7 +328,7 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	ctx, cancel := withTimeout(ctx, plan.Timeouts, "create", defaultVMCreateTimeout)
 	defer cancel()
 
-	if err := r.client.CheckCredit(ctx, 0.50); err != nil {
+	if err := r.client.CheckCredit(ctx, minDailyPrice()); err != nil {
 		resp.Diagnostics.AddError("Insufficient credit", err.Error())
 		return
 	}
@@ -347,7 +347,7 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	creditBefore := r.client.SafeCredit(ctx)
 	orderResp, err := r.client.SubmitOrder(ctx, plan.Hostname.ValueString(), plan.PackageID.ValueInt64(), plan.PricingID.ValueInt64(), configOptions)
 	if err != nil {
-		addSHCError(&resp.Diagnostics, "Creating VM", fmt.Errorf("Could not submit order: %w", err))
+		addSHCError(&resp.Diagnostics, "Creating VM", fmt.Errorf("could not submit order: %w", err))
 		return
 	}
 
@@ -395,7 +395,7 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 		if err := r.client.CancelVM(ctx, serviceID, false); err != nil {
 			resp.Diagnostics.AddWarning(
 				"Auto-cancel scheduling failed",
-				fmt.Sprintf("Could not schedule end-of-term cancellation: %s. The VPS may auto-renew.", err),
+				fmt.Sprintf("could not schedule end-of-term cancellation: %s. The VPS may auto-renew.", err),
 			)
 		}
 	}
@@ -533,7 +533,7 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 		if err := r.client.UpgradeVM(ctx, state.ServiceID.ValueString(), effectivePricingID); err != nil {
 			resp.Diagnostics.AddError(
 				"Error upgrading VM",
-				fmt.Sprintf("Could not upgrade VM %s to pricing_id %d: %s", state.ServiceID.ValueString(), effectivePricingID, err),
+				fmt.Sprintf("could not upgrade VM %s to pricing_id %d: %s", state.ServiceID.ValueString(), effectivePricingID, err),
 			)
 			return
 		}
@@ -569,7 +569,7 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 		if _, err := r.client.ChangeVMTerm(ctx, state.ServiceID.ValueString(), termBody); err != nil {
 			resp.Diagnostics.AddError(
 				"Error changing VM term",
-				fmt.Sprintf("Could not change term to pricing_id %d: %s", plan.Term.ValueInt64(), err),
+				fmt.Sprintf("could not change term to pricing_id %d: %s", plan.Term.ValueInt64(), err),
 			)
 			return
 		}

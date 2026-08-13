@@ -1,2 +1,10 @@
 #!/bin/bash
-exec python3 "$(git rev-parse --show-toplevel)/scripts/secret_scanner.py"
+set -e
+
+python3 "$(git rev-parse --show-toplevel)/scripts/secret_scanner.py"
+
+gofmt -l provider/*.go | grep -q . && {
+  echo "gofmt found unformatted files:"; gofmt -l provider/*.go; exit 1
+}
+go vet ./provider/ 2>&1 | grep -v "^#" && exit 1
+echo "Go format + vet: OK"

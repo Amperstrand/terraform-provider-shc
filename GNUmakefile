@@ -14,7 +14,10 @@ testacc:
 	TF_ACC=1 go test -v -cover -timeout 120m ./...
 
 vet:
-	@sh -c "'$(GOFMT)' -l $$($(GOFMT_FILES))"
+	go vet ./...
+
+lint: vet
+	golangci-lint run
 
 fmt:
 	gofmt -w $(GOFMT_FILES)

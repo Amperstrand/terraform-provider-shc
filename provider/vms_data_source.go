@@ -25,7 +25,7 @@ type vmListItem struct {
 }
 
 type vmsDataSourceModel struct {
-	ID  types.String  `tfsdk:"id"`
+	ID  types.String `tfsdk:"id"`
 	VMs []vmListItem `tfsdk:"vms"`
 }
 
