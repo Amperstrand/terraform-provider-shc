@@ -5,7 +5,26 @@ All notable changes to terraform-provider-shc are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.4.24.2] — 2026-08-14
+
+Adopts the shc-toolkit versioning scheme (`<API_VERSION>.<patch>`). Both repos are now versioned `2.4.24.x`, making cross-repo alignment immediately visible.
+
+Built against SHC API v2.4.24. Synced with shc-toolkit v2.4.24.2.
+
+### Changed
+- **sizes.go regenerated from shc-toolkit catalog model.** Generated via `python3 ../shc-toolkit/scripts/generate_sizes.py --format go --output provider/sizes.go`. Prices now match the live API exactly (20/20) using the model's Decimal arithmetic (NVMe rate = 1/512 per GB, ROUND_HALF_UP). HDD Enterprise override: $3.53.
+- **EstimateDailyCost uses static sizes.go instead of 10.3MB catalog fetch.** Zero network calls for cost estimation.
+- **resolveOrderFormID uses static map instead of catalog fetch.** Order form IDs are per-line: nvme=1, ssd=7, hdd=3, dev=11. Eliminates another full catalog download per order. Order submission now makes 2 API calls instead of 3.
+- **debian13-cloud is the default template everywhere.** Tests, docs, and examples previously used debian12-cloud based on a misdiagnosed cloud-init deadlock (issue #24). The actual problem was the Dev zone scheduler hang (issue #28). debian13-cloud works correctly on NVMe/SSD/HDD VPS in Katy, TX.
+- **CheckCredit fails closed on errors.** Previously returned nil (silently allowed orders) when the balance endpoint was unreachable. Now returns an error so orders don't proceed with unverified credit.
+- **Credit check derives from sizes.go minimum.** Was hardcoded $0.50; now uses `minDailyPrice()` (currently $0.24).
+- **User-Agent corrected** from v0.2.0 to v0.4.0.
+- **Pre-commit hook** now runs gofmt + go vet in addition to secret scanning.
+- **Makefile vet target** fixed — was running gofmt instead of `go vet`.
+
+### Added
+- **AGENTS.md** — Maintenance guide with architecture, testing, regeneration instructions, and lessons learned from shc-toolkit.
+- **README: Pulumi via Terraform Bridge section** — Quick start guide, code example, comparison table, and link to the full migration guide. Documents that this provider is the recommended path for Pulumi users (the native shc-pulumi is deprecated).
 
 ### Changed
 - **sizes.go regenerated from shc-toolkit catalog model.** Generated via `python3 ../shc-toolkit/scripts/generate_sizes.py --format go --output provider/sizes.go`. Prices now match the live API exactly (20/20) using the model's Decimal arithmetic (NVMe rate = 1/512 per GB, ROUND_HALF_UP). HDD Enterprise override: $3.53.

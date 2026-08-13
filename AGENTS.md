@@ -66,4 +66,4 @@ TF_ACC=1 SHC_API_KEY=shc_live_... go test ./provider/ -run TestAcc -v -timeout 6
 
 ## Version scheme
 
-Independent semver (`v0.4.0`). Does NOT mirror the SHC API version.
+Mirrors shc-toolkit: `<SHC_API_VERSION>.<patch>` (e.g., `2.4.24.2`). Both repos targeting the same API version share the same prefix, making cross-repo alignment immediately visible. The patch number is independent per repo.

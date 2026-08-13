@@ -2,10 +2,12 @@
 
 Terraform provider for Sovereign Hybrid Compute (SHC) VPS. Manage SHC virtual machines, snapshots, backups, firewall rules, and reverse DNS as Terraform infrastructure-as-code.
 
+**Works with Pulumi too** — no separate provider needed. See [Pulumi via Terraform Bridge](#pulumi-via-terraform-bridge) below.
+
 ## Related Projects
 
-- [shc-toolkit](https://github.com/Amperstrand/shc-toolkit) — Python client, CLI, and provisioning toolkit for SHC
-- [shc-pulumi](https://github.com/Amperstrand/shc-pulumi) — Pulumi provider for SHC (maintenance mode — use TF bridge for new projects)
+- [shc-toolkit](https://github.com/Amperstrand/shc-toolkit) — Python client, CLI, and provisioning toolkit for SHC (v2.4.24+)
+- [shc-pulumi](https://github.com/Amperstrand/shc-pulumi) — ⛔ Deprecated. Use this provider via the Pulumi TF Bridge instead.
 
 ## Quick Start
 
@@ -329,6 +331,59 @@ data "shc_vm" "existing" {
   service_id = "123"
 }
 ```
+
+## Pulumi via Terraform Bridge
+
+This provider works natively with [Pulumi](https://www.pulumi.com/) via the "Any Terraform Provider" feature — no separate Pulumi provider needed. The native `shc-pulumi` Python provider is deprecated in favor of this path.
+
+### Quick Start
+
+```bash
+# 1. Build the Terraform provider
+git clone https://github.com/Amperstrand/terraform-provider-shc
+cd terraform-provider-shc
+go build -o terraform-provider-shc .
+
+# 2. Create a Pulumi project
+mkdir my-pulumi-project && cd my-pulumi-project
+pulumi new python
+
+# 3. Generate a Pulumi SDK from the TF provider
+pulumi package add terraform-provider ./terraform-provider-shc --language python
+
+# 4. Use it in your Pulumi program
+```
+
+```python
+import shc
+import pulumi
+
+config = pulumi.Config()
+provider = shc.Provider("shc", api_key=config.require_secret("shc_api_key"))
+
+vm = shc.Vm("web",
+    hostname="web",
+    size="nvme-2c-8gb",
+    opts=pulumi.ResourceOptions(provider=provider),
+)
+
+pulumi.export("ip", vm.ip)
+```
+
+```bash
+export SHC_API_KEY="shc_live_..."
+pulumi up
+```
+
+→ **[Full migration guide from shc-pulumi](https://github.com/Amperstrand/shc-pulumi/blob/main/MIGRATION-TO-BRIDGE.md)**
+
+### Why the bridge?
+
+| | TF Provider + Bridge | Deprecated shc-pulumi |
+|---|---|---|
+| Features | HTTP retry, input validators, idempotency keys, acceptance-tested CRUD | Subset, mocked tests only |
+| Maintenance | Auto-syncs with this repo | Manual, archived |
+| Resources | All (VM, snapshot, backup, firewall, rDNS) | VM + snapshot only |
 
 ## Known Limitations
 
