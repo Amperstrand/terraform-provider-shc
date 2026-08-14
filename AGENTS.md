@@ -64,6 +64,12 @@ TF_ACC=1 SHC_API_KEY=shc_live_... go test ./provider/ -run TestAcc -v -timeout 6
 
 7. **CHANGELOG discipline** — every change that adds a feature, fixes a bug, or alters behavior MUST add a CHANGELOG entry in the same commit.
 
+## Cross-repo audits
+
+Mechanical parity: run from shc-toolkit — `python3 ../shc-toolkit/scripts/audit_cross_repo.py` (must be all-pass).
+
+Semantic parity: `../shc-toolkit/docs/cross-repo-audit-prompts.md` contains four AI-agent prompts for comparing the two repos (behavioral parity, lessons-ported, DRY boundaries, live drift smoke test). Run after every SHC API update and before tagging.
+
 ## Version scheme
 
 Mirrors shc-toolkit: `<SHC_API_VERSION>.<patch>` (e.g., `2.4.24.2`). Both repos targeting the same API version share the same prefix, making cross-repo alignment immediately visible. The patch number is independent per repo.
