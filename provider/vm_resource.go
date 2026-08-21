@@ -160,10 +160,10 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				},
 			},
 			"ssh_key": resourceschema.StringAttribute{
-				Optional:    true,
-				Sensitive:   true,
-				WriteOnly:   true,
-				Description: "SSH public key to apply to the VPS after provisioning. Write-only: not stored in state.",
+				Optional:  true,
+				Sensitive: true,
+				WriteOnly: true,
+				Description: "SSH public key: rides the order (cloud-init seed) AND is apply-live'd with verification after provisioning. WriteOnly: read from CONFIG at create (plans strip it) and never stored in state.",
 			},
 			"auto_cancel": resourceschema.BoolAttribute{
 				Optional:    true,
@@ -296,9 +296,22 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	var plan vmResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
 		return
 	}
+
+	// ssh_key is WriteOnly (never persisted in plan/state by design) —
+	// its live value ONLY exists in the raw CONFIG. Reading it from the
+	// plan yielded null, so the key never rode the order and the
+	// apply-live loop never ran: every VM came up keyless (root cause of
+	// the keyless-VM saga; verified via wire capture 2026-08-21).
+	var config vmResourceModel
+	diags = req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+	plan.SSHKey = config.SSHKey
 
 	tflog.Info(ctx, "Creating SHC VM", map[string]any{
 		"hostname": plan.Hostname.ValueString(),
