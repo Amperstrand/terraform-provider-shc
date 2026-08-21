@@ -228,6 +228,30 @@ func (c *SHCClient) cancelVMOnce(ctx context.Context, serviceID string, immediat
 	return nil
 }
 
+// SSHKeyStatus reports the stored key for a VM. A successful apply-live
+// lands the key here (fingerprint set); a best-effort no-op against a
+// booting VM does not — this is the only way to VERIFY injection.
+func (c *SHCClient) SSHKeyStatus(ctx context.Context, serviceID string) (string, error) {
+	path := "/vm/" + serviceID + "/ssh-keys"
+	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return "", err
+	}
+	if statusCode >= 400 {
+		return "", fmt.Errorf("get ssh-keys failed (status %d): %s", statusCode, string(respBody))
+	}
+	var entries []struct {
+		Key string `json:"ssh_key"`
+	}
+	if err := json.Unmarshal(unwrapData(respBody), &entries); err != nil {
+		return "", fmt.Errorf("parsing ssh-keys: %w", err)
+	}
+	if len(entries) == 0 {
+		return "", nil
+	}
+	return entries[0].Key, nil
+}
+
 func (c *SHCClient) ApplySSHKey(ctx context.Context, serviceID, sshKey string) error {
 	path := "/vm/" + serviceID + "/ssh-keys/apply-live"
 

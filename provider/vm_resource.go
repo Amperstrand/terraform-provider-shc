@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -385,21 +386,26 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	plan.OSUser = types.StringValue(osUser)
 
 	if !plan.SSHKey.IsNull() && plan.SSHKey.ValueString() != "" {
-		// Fallback only: the key rides the order (injected at provision
-		// time). apply-live is best-effort and races sshd boot, so retry
-		// a few times and warn — never fail the whole create for it.
+		// apply-live is best-effort: it returns "attempted" even when the
+		// VM is still booting and nothing landed (hit live: keyless VMs).
+		// The stored-key view only updates on a real landing, so retry
+		// apply-live and VERIFY via the fingerprint until it sticks.
 		applied := false
-		for attempt := 0; attempt < 3 && !applied; attempt++ {
-			if err := r.client.ApplySSHKey(ctx, serviceID, plan.SSHKey.ValueString()); err == nil {
-				applied = true
-			} else {
+		for attempt := 0; attempt < 6 && !applied; attempt++ {
+			_ = r.client.ApplySSHKey(ctx, serviceID, plan.SSHKey.ValueString())
+			for poll := 0; poll < 6 && !applied; poll++ {
 				time.Sleep(10 * time.Second)
+				key, err := r.client.SSHKeyStatus(ctx, serviceID)
+				if err == nil && strings.TrimSpace(key) != "" && key != "null" {
+					applied = true
+				}
 			}
 		}
 		if !applied {
 			resp.Diagnostics.AddWarning(
-				"SSH key live-apply fallback failed",
-				"the order-time key should already be provisioned; if SSH access fails, apply manually: shc ssh-key-live <service_id> --key <pubkey>",
+				"SSH key injection not confirmed",
+				"apply-live kept no-opping (VM slow to boot?). SSH may refuse the key; "+
+					"retry after boot: shc ssh-key-live <service_id> --key <pubkey>",
 			)
 		}
 	}
