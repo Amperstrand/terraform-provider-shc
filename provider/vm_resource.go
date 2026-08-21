@@ -386,13 +386,14 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	plan.OSUser = types.StringValue(osUser)
 
 	if !plan.SSHKey.IsNull() && plan.SSHKey.ValueString() != "" {
-		// apply-live is best-effort: it returns "attempted" even when the
-		// VM is still booting and nothing landed (hit live: keyless VMs).
-		// The stored-key view only updates on a real landing, so retry
-		// apply-live and VERIFY via the fingerprint until it sticks.
+		// strip ONCE for both paths: SHC silently no-ops an ssh_key with a
+		// trailing newline (terraform's file() keeps it) — the order path
+		// dropped it, and apply-live kept no-opping for the whole retry
+		// loop while the stripped manual CLI call landed instantly.
+		sshKey := strings.TrimSpace(plan.SSHKey.ValueString())
 		applied := false
 		for attempt := 0; attempt < 6 && !applied; attempt++ {
-			_ = r.client.ApplySSHKey(ctx, serviceID, plan.SSHKey.ValueString())
+			_ = r.client.ApplySSHKey(ctx, serviceID, sshKey)
 			for poll := 0; poll < 6 && !applied; poll++ {
 				time.Sleep(10 * time.Second)
 				key, err := r.client.SSHKeyStatus(ctx, serviceID)

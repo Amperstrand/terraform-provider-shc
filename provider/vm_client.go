@@ -16,18 +16,21 @@ import (
 func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID, pricingID int64, configOptions map[string]string, sshKey string) (*OrderResponse, error) {	c.orderIdempotencyKey = fmt.Sprintf("order-%d-%d", time.Now().UnixNano(), rand.Int64())
 	defer func() { c.orderIdempotencyKey = "" }()
 
-	orderFormID, err := c.resolveOrderFormID(ctx, packageID)
+	formID, moduleGroupID, packageGroupID, err := c.storefrontIDsForPackage(packageID)
 	if err != nil {
-		return nil, fmt.Errorf("resolving order_form_id for package %d: %w", packageID, err)
+		return nil, fmt.Errorf("resolving storefront ids for package %d: %w", packageID, err)
 	}
 
 	orderReq := OrderRequest{
-		Hostname:      hostname,
-		PackageID:     packageID,
-		PricingID:     pricingID,
-		OrderFormID:   orderFormID,
-		SSHKey:        strings.TrimSpace(sshKey),
-		ConfigOptions: configOptions,
+		Hostname:       hostname,
+		PackageID:      packageID,
+		PricingID:      pricingID,
+		OrderFormID:    formID,
+		ModuleGroupID:  moduleGroupID,
+		PackageGroupID: packageGroupID,
+		User:           "debian",
+		SSHKey:         strings.TrimSpace(sshKey),
+		ConfigOptions:  configOptions,
 	}
 
 	body, err := json.Marshal(orderReq)

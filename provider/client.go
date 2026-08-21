@@ -218,11 +218,21 @@ func (c *SHCClient) handleConfirmation(ctx context.Context, method, path string,
 	return respBody, nil
 }
 
-func (c *SHCClient) resolveOrderFormID(ctx context.Context, packageID int64) (int64, error) {
-	if formID, ok := orderFormIDForPackage(packageID); ok {
-		return formID, nil
+func (c *SHCClient) storefrontIDsForPackage(packageID int64) (formID, moduleGroupID, packageGroupID int64, err error) {
+	err = fmt.Errorf("package_id %d not found in static size map", packageID)
+	for _, s := range sizeMap {
+		if s.PackageID != packageID {
+			continue
+		}
+		f, okf := lineOrderFormIDs[s.Line]
+		m, okm := lineModuleGroupIDs[s.Line]
+		p, okp := linePackageGroupIDs[s.Line]
+		if !okf || !okm || !okp {
+			return 0, 0, 0, err
+		}
+		return f, m, p, nil
 	}
-	return 0, fmt.Errorf("package_id %d not found in static size map", packageID)
+	return 0, 0, 0, err
 }
 
 type SweepVM struct {

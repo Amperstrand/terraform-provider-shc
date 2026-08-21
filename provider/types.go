@@ -44,10 +44,12 @@ type OrderRequest struct {
 	PackageID     int64             `json:"package_id"`
 	PricingID     int64             `json:"pricing_id"`
 	OrderFormID   int64             `json:"order_form_id"`
-	// SSHKey rides the ORDER (like shc order --ssh-key) so SHC injects it
-	// during provisioning. apply-live after boot is only a fallback: at
-	// Create time sshd often isn't up yet and the best-effort endpoint
-	// silently no-ops (hit live: VM came up keyless, "ssh_key": "null").
+	ModuleGroupID int64             `json:"module_group_id,omitempty"`
+	PackageGroupID int64            `json:"package_group_id,omitempty"`
+	User          string            `json:"user,omitempty"`
+	// SSHKey rides the ORDER so SHC injects it into the cloud-init seed
+	// disk (first-boot install on NVMe/SSD/HDD). Requires the full
+	// storefront triple above — see sizes.go lineModuleGroupIDs note.
 	SSHKey        string            `json:"ssh_key,omitempty"`
 	ConfigOptions map[string]string `json:"config_options,omitempty"`
 }

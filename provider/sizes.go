@@ -12,7 +12,6 @@ type sizeEntry struct {
 	Name       string
 	DailyPrice float64
 }
-
 var sizeMap = map[string]sizeEntry{
 	"nvme-1c-4gb":   {23, 55, 1, 4096, 8, "nvme", "NVMe VPS - Starter", 0.26},
 	"nvme-2c-8gb":   {26, 56, 2, 8192, 16, "nvme", "NVMe VPS - Standard", 0.49},
@@ -100,16 +99,25 @@ var lineOrderFormIDs = map[string]int64{
 	"dev":  11,
 }
 
-func orderFormIDForPackage(packageID int64) (int64, bool) {
-	for _, s := range sizeMap {
-		if s.PackageID == packageID {
-			if formID, ok := lineOrderFormIDs[s.Line]; ok {
-				return formID, true
-			}
-		}
-	}
-	return 0, false
+// Storefront triples per line (SHC validates order_form_id together with
+// module_group_id/package_group_id against the plan's storefront path, and
+// the order-time ssh_key only survives the FULL triple — a lone form id
+// 400s (form 11) or silently drops the key (forms 1/7). Values captured
+// from live shc order --dry-run normalized_request, 2026-08-21).
+var lineModuleGroupIDs = map[string]int64{
+	"nvme": 4,
+	"ssd":  7,
+	"hdd":  8,
+	"dev":  7,
 }
+
+var linePackageGroupIDs = map[string]int64{
+	"nvme": 3,
+	"ssd":  10,
+	"hdd":  5,
+	"dev":  14,
+}
+
 
 func minDailyPrice() float64 {
 	var min float64
