@@ -13,8 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID, pricingID int64, configOptions map[string]string, sshKey string) (*OrderResponse, error) {
-	c.orderIdempotencyKey = fmt.Sprintf("order-%d-%d", time.Now().UnixNano(), rand.Int64())
+func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID, pricingID int64, configOptions map[string]string, sshKey string) (*OrderResponse, error) {	c.orderIdempotencyKey = fmt.Sprintf("order-%d-%d", time.Now().UnixNano(), rand.Int64())
 	defer func() { c.orderIdempotencyKey = "" }()
 
 	orderFormID, err := c.resolveOrderFormID(ctx, packageID)
@@ -27,7 +26,7 @@ func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID,
 		PackageID:     packageID,
 		PricingID:     pricingID,
 		OrderFormID:   orderFormID,
-		SSHKey:        sshKey,
+		SSHKey:        strings.TrimSpace(sshKey),
 		ConfigOptions: configOptions,
 	}
 
@@ -228,9 +227,9 @@ func (c *SHCClient) cancelVMOnce(ctx context.Context, serviceID string, immediat
 	return nil
 }
 
-// SSHKeyStatus reports the stored key for a VM. A successful apply-live
-// lands the key here (fingerprint set); a best-effort no-op against a
-// booting VM does not — this is the only way to VERIFY injection.
+// SSHKeyStatus reports any stored key for a VM. A successful apply-live
+// appends an entry (the order slot may stay "null" at index 0 — observed
+// live on VM 2212), so EVERY entry is checked.
 func (c *SHCClient) SSHKeyStatus(ctx context.Context, serviceID string) (string, error) {
 	path := "/vm/" + serviceID + "/ssh-keys"
 	statusCode, respBody, err := c.doRequest(ctx, http.MethodGet, path, nil, "")
@@ -246,10 +245,12 @@ func (c *SHCClient) SSHKeyStatus(ctx context.Context, serviceID string) (string,
 	if err := json.Unmarshal(unwrapData(respBody), &entries); err != nil {
 		return "", fmt.Errorf("parsing ssh-keys: %w", err)
 	}
-	if len(entries) == 0 {
-		return "", nil
+	for _, e := range entries {
+		if k := strings.TrimSpace(e.Key); k != "" && k != "null" {
+			return k, nil
+		}
 	}
-	return entries[0].Key, nil
+	return "", nil
 }
 
 func (c *SHCClient) ApplySSHKey(ctx context.Context, serviceID, sshKey string) error {
