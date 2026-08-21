@@ -284,7 +284,7 @@ func TestGetBalance(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": map[string]interface{}{
 				"balance":  "10.50",
-				"credit":   "5.00",
+				"credit":   []map[string]string{{"currency": "USD", "amount": "5.00"}},
 				"currency": "USD",
 			},
 		})
@@ -299,11 +299,38 @@ func TestGetBalance(t *testing.T) {
 	if bal.Balance.String() != "10.50" {
 		t.Errorf("expected balance 10.50, got %s", bal.Balance.String())
 	}
-	if bal.Credit.String() != "5.00" {
-		t.Errorf("expected credit 5.00, got %s", bal.Credit.String())
+	if len(bal.Credit) != 1 || bal.Credit[0].Amount != "5.00" {
+		t.Errorf("expected credit [{USD 5.00}], got %+v", bal.Credit)
 	}
 	if bal.Currency != "USD" {
 		t.Errorf("expected currency USD, got %s", bal.Currency)
+	}
+}
+
+// Regression: the LIVE /billing/balance response (captured 2026-08-21,
+// eddy-lab deploy) returns credit as an ARRAY with balances alongside.
+// A scalar Credit field failed json.Unmarshal on the whole response and
+// blocked every order with "credit check failed (cannot verify balance)".
+func TestGetBalance_LiveCreditArrayShape(t *testing.T) {
+	liveBody := `{"data":{"default_currency":"USD","selected_currency":"USD","payment_credit_enabled":true,"balances":[{"currency":"USD","available_credit":"72.31","open_invoices_total":"0.00","open_invoices_paid":"0.00","balance_due":"0.00"}],"credit":[{"currency":"USD","amount":"72.31"}]}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(liveBody))
+	}))
+	defer server.Close()
+
+	client := NewSHCClient("test", server.URL)
+	bal, err := client.GetBalance(context.Background())
+	if err != nil {
+		t.Fatalf("live-shape balance must parse, got: %v", err)
+	}
+	if len(bal.Credit) != 1 || bal.Credit[0].Amount != "72.31" {
+		t.Errorf("credit: expected [{USD 72.31}], got %+v", bal.Credit)
+	}
+	if err := client.CheckCredit(context.Background(), 50.0); err != nil {
+		t.Errorf("72.31 available must pass a $50 check, got: %v", err)
+	}
+	if err := client.CheckCredit(context.Background(), 100.0); err == nil {
+		t.Error("72.31 available must fail a $100 check")
 	}
 }
 

@@ -116,11 +116,22 @@ type BackupResponse struct {
 
 type BalanceResponse struct {
 	Balance  flexibleString `json:"balance"`
-	Credit   flexibleString `json:"credit"`
+	// Credit is an array in the live API, e.g.:
+	//   "credit": [{"currency": "USD", "amount": "72.31"}]
+	// (a scalar here failed json.Unmarshal on the WHOLE balance response
+	// and blocked every order with "cannot verify balance" — regression
+	// pinned by TestGetBalance_LiveCreditArrayShape)
+	Credit   []CreditEntry  `json:"credit"`
 	Currency string         `json:"currency"`
 	// Balances is the array form returned by the API, e.g.:
 	//   {"balances": [{"currency": "USD", "available_credit": "1.47"}]}
 	Balances []BalanceEntry `json:"balances"`
+}
+
+// CreditEntry represents a single currency credit entry.
+type CreditEntry struct {
+	Currency string `json:"currency"`
+	Amount   string `json:"amount"`
 }
 
 // BalanceEntry represents a single currency balance entry.
