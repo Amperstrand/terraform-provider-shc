@@ -101,8 +101,7 @@ Available packages for CI runners:
 | 26 | 55 | 2 | 8 GB | 16 GB | $14.83/mo |
 | 26 | 56 | 2 | 16 GB | 16 GB | $20.83/mo |
 | 30 | 55 | 4 | 16 GB | 32 GB | $29.83/mo |
-| 81 | 245 | 2 | 8 GB | 16 GB | ~$20/mo (Dev VPS) |
-| 82 | 249 | 4 | 16 GB | 32 GB | ~$35/mo (Dev VPS) |
+| 26 | 56 | 2 | 16 GB | 16 GB | $20.83/mo |
 
 For CI/CD workloads, 2 vCPUs and 8+ GB RAM is recommended. Use `shc catalog` to see all available packages.
 

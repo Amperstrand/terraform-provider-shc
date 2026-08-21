@@ -23,8 +23,8 @@ This guide shows how to migrate Hetzner Cloud Terraform configurations to SHC us
 | cx11 (1C/2GB/20GB) | 23 | 55 | $7.78/mo |
 | cx21 (2C/4GB/40GB) | 26 | 55 | $14.83/mo |
 | cx31 (2C/8GB/80GB) | 26 | 56 | $20.83/mo |
-| cx41 (4C/16GB/160GB) | 81 | 245 | ~$20/mo |
-| cx51 (8C/32GB/320GB) | 82 | 249 | ~$35/mo |
+| cx41 (4C/16GB/160GB) | 29 | 57 | ~$29/mo |
+| cx51 (8C/32GB/320GB) | 32 | 58 | ~$58/mo |
 
 Note: SHC NVMe packages include more disk than Hetzner's base plans. NVMe Starter (pkg 23) includes 8GB disk, while Hetzner cx11 includes 20GB. For more disk, upgrade to a higher SHC package.
 

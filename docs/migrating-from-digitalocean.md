@@ -23,8 +23,8 @@ This guide shows how to migrate DigitalOcean Terraform configurations to SHC usi
 | s-1vcpu-2gb | 23 | 56 | $11.78/mo |
 | s-2vcpu-2gb | 26 | 55 | $14.83/mo |
 | s-2vcpu-4gb | 26 | 56 | $20.83/mo |
-| c-2vcpu-4gb | 81 | 245 | ~$20/mo |
-| c-4vcpu-8gb | 82 | 249 | ~$35/mo |
+| c-2vcpu-4gb | 26 | 56 | $20.83/mo |
+| c-4vcpu-8gb | 29 | 57 | ~$29/mo |
 
 ## Before: DigitalOcean Droplet
 
@@ -166,7 +166,9 @@ For NVMe VPS packages:
 - Package 30: NVMe Performance
 - Package 33: NVMe Ultra
 
-For Dev VPS packages:
+For Dev VPS packages (cheaper, but the dev zone has had reliability
+issues — prefer NVMe for anything you care about, even crash-tolerant
+CI):
 
 - Package 81: Dev VPS Standard
 - Package 82: Dev VPS Professional

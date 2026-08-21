@@ -16,9 +16,8 @@ provider "shc" {
 }
 
 resource "shc_vm" "test" {
-  hostname    = "tf-test"
-  package_id  = 81
-  pricing_id  = 245
+  hostname   = "tf-test"
+  size       = "nvme-2c-8gb" # non-dev default: dev zone has reliability issues; NVMe is +$0.03/day over SSD
   auto_cancel = true
 }
 
