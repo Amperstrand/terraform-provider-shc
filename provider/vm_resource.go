@@ -345,7 +345,7 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	}
 
 	creditBefore := r.client.SafeCredit(ctx)
-	orderResp, err := r.client.SubmitOrder(ctx, plan.Hostname.ValueString(), plan.PackageID.ValueInt64(), plan.PricingID.ValueInt64(), configOptions)
+	orderResp, err := r.client.SubmitOrder(ctx, plan.Hostname.ValueString(), plan.PackageID.ValueInt64(), plan.PricingID.ValueInt64(), configOptions, plan.SSHKey.ValueString())
 	if err != nil {
 		addSHCError(&resp.Diagnostics, "Creating VM", fmt.Errorf("could not submit order: %w", err))
 		return
@@ -385,9 +385,22 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	plan.OSUser = types.StringValue(osUser)
 
 	if !plan.SSHKey.IsNull() && plan.SSHKey.ValueString() != "" {
-		if err := r.client.ApplySSHKey(ctx, serviceID, plan.SSHKey.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error applying SSH key", err.Error())
-			return
+		// Fallback only: the key rides the order (injected at provision
+		// time). apply-live is best-effort and races sshd boot, so retry
+		// a few times and warn — never fail the whole create for it.
+		applied := false
+		for attempt := 0; attempt < 3 && !applied; attempt++ {
+			if err := r.client.ApplySSHKey(ctx, serviceID, plan.SSHKey.ValueString()); err == nil {
+				applied = true
+			} else {
+				time.Sleep(10 * time.Second)
+			}
+		}
+		if !applied {
+			resp.Diagnostics.AddWarning(
+				"SSH key live-apply fallback failed",
+				"the order-time key should already be provisioned; if SSH access fails, apply manually: shc ssh-key-live <service_id> --key <pubkey>",
+			)
 		}
 	}
 

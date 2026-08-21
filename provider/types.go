@@ -44,6 +44,11 @@ type OrderRequest struct {
 	PackageID     int64             `json:"package_id"`
 	PricingID     int64             `json:"pricing_id"`
 	OrderFormID   int64             `json:"order_form_id"`
+	// SSHKey rides the ORDER (like shc order --ssh-key) so SHC injects it
+	// during provisioning. apply-live after boot is only a fallback: at
+	// Create time sshd often isn't up yet and the best-effort endpoint
+	// silently no-ops (hit live: VM came up keyless, "ssh_key": "null").
+	SSHKey        string            `json:"ssh_key,omitempty"`
 	ConfigOptions map[string]string `json:"config_options,omitempty"`
 }
 

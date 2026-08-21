@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID, pricingID int64, configOptions map[string]string) (*OrderResponse, error) {
+func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID, pricingID int64, configOptions map[string]string, sshKey string) (*OrderResponse, error) {
 	c.orderIdempotencyKey = fmt.Sprintf("order-%d-%d", time.Now().UnixNano(), rand.Int64())
 	defer func() { c.orderIdempotencyKey = "" }()
 
@@ -27,6 +27,7 @@ func (c *SHCClient) SubmitOrder(ctx context.Context, hostname string, packageID,
 		PackageID:     packageID,
 		PricingID:     pricingID,
 		OrderFormID:   orderFormID,
+		SSHKey:        sshKey,
 		ConfigOptions: configOptions,
 	}
 

@@ -42,7 +42,7 @@ func TestSubmitOrder(t *testing.T) {
 	defer server.Close()
 
 	client := NewSHCClient("test-key", server.URL)
-	order, err := client.SubmitOrder(context.Background(), "test-vm", 81, 245, nil)
+	order, err := client.SubmitOrder(context.Background(), "test-vm", 81, 245, nil, "")
 	if err != nil {
 		t.Fatalf("SubmitOrder failed: %v", err)
 	}
@@ -53,8 +53,16 @@ func TestSubmitOrder(t *testing.T) {
 
 func TestSubmitOrder_ConfirmationFlow(t *testing.T) {
 	callCount := 0
+	var sawSSHyKey bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
+		var req struct {
+			SSHKey string `json:"ssh_key"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if req.SSHKey != "" {
+			sawSSHyKey = true
+		}
 		// POST /ordering/submit without confirm → 409
 		if r.URL.Path == "/ordering/submit" && r.Header.Get("X-User-Api-Confirm") == "" {
 			w.WriteHeader(http.StatusConflict)
@@ -79,7 +87,7 @@ func TestSubmitOrder_ConfirmationFlow(t *testing.T) {
 	defer server.Close()
 
 	client := NewSHCClient("test-key", server.URL)
-	order, err := client.SubmitOrder(context.Background(), "test-vm", 81, 245, nil)
+	order, err := client.SubmitOrder(context.Background(), "test-vm", 81, 245, nil, "ssh-ed25519 AAAAtest")
 	if err != nil {
 		t.Fatalf("SubmitOrder with confirmation failed: %v", err)
 	}
@@ -89,6 +97,9 @@ func TestSubmitOrder_ConfirmationFlow(t *testing.T) {
 	// 2 calls: initial POST (409) + confirmation POST (no catalog fetch — static map)
 	if callCount != 2 {
 		t.Errorf("expected 2 calls, got %d", callCount)
+	}
+	if !sawSSHyKey {
+		t.Error("ssh_key must ride the order request body (order-time injection)")
 	}
 }
 
