@@ -7,6 +7,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+- **Scheduled CI reduced from weekly to monthly**, staggered: acceptance-scheduled (3rd), bridge-e2e (4th). The duplicate weekly schedule on `acceptance.yml` was removed (its monthly run lives in `acceptance-scheduled.yml`; `acceptance.yml` stays manually dispatchable).
+
+### Added
+- **CI job `generated-files-drift`** — regenerates `sizes.go` from shc-toolkit's `catalog_model.py` and fails on any diff. Locks in "sizes.go is 100% generated, no hand-edits" mechanically; verified matching.
+
+### Fixed
+- **Scheduled workflows failed silently for days**: `acceptance-scheduled` installed shc-toolkit before cloning it; `bridge-e2e` had the same bug plus a duplicate build step. Both reordered, and both now auto-create deduplicated `ci-failure` issues. Integration smoke used the pre-`sshKey` `SubmitOrder` signature (compile error) and ordered pkg 81 — the broken Dev zone; now pkg 23 (NVMe).
+
 ### Fixed
 - **Template validator was stale — rejected 23 valid templates.** Hand-maintained list had 11 entries; the catalog has 34. `knownTemplates` is now generated into `sizes.go` from shc-toolkit's `catalog_model.py` (34 entries). Users ordering e.g. `gentoo-cloud`, `kali-cloud`, or `win2025-byol` were incorrectly rejected at plan time. Found by cross-repo behavioral parity audit (Prompt 1).
 - **Size validator accepted nonexistent sizes.** Regex-only check passed `nvme-99c-999gb`. Now also requires `sizeMap` membership, with a distinct "syntactically valid but not in catalog" error. Found by DRY audit (Prompt 3).

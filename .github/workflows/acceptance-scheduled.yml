@@ -3,7 +3,7 @@ name: Scheduled Acceptance Tests
 
 on:
   schedule:
-    - cron: '0 6 * * 1'
+    - cron: '0 6 3 * *'  # Monthly: 3rd 06:00 UTC
   workflow_dispatch:
 
 permissions:

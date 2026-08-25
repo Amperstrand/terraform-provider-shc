@@ -10,9 +10,7 @@
 name: acceptance
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 5 * * 1'
+  workflow_dispatch:  # scheduled runs live in acceptance-scheduled.yml
 
 jobs:
   acceptance:

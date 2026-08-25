@@ -2,7 +2,7 @@ name: Bridge E2E
 
 on:
   schedule:
-    - cron: '17 8 * * 1'
+    - cron: '17 8 4 * *'  # Monthly: 4th 08:17 UTC
   workflow_dispatch:
 
 permissions:
