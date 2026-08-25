@@ -160,9 +160,9 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				},
 			},
 			"ssh_key": resourceschema.StringAttribute{
-				Optional:  true,
-				Sensitive: true,
-				WriteOnly: true,
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
 				Description: "SSH public key: rides the order (cloud-init seed) AND is apply-live'd with verification after provisioning. WriteOnly: read from CONFIG at create (plans strip it) and never stored in state.",
 			},
 			"auto_cancel": resourceschema.BoolAttribute{

@@ -22,18 +22,18 @@ jobs:
 
       - uses: pulumi/action-install-pulumi-cli@v2
 
-      - name: Install shc-toolkit
-        run: pip install -e .
+      - name: Clone shc-toolkit
+        run: git clone --depth=1 https://github.com/Amperstrand/shc-toolkit.git ../shc-toolkit
 
-      - name: Build provider
-        run: go build -o terraform-provider-shc .
-        working-directory: ../terraform-provider-shc
+      - name: Install shc-toolkit
+        run: pip install -e ../shc-toolkit
 
       - name: Clone terraform-provider-shc
         run: git clone --depth=1 https://github.com/Amperstrand/terraform-provider-shc.git ../terraform-provider-shc
 
-      - name: Build provider binary
-        run: cd ../terraform-provider-shc && go build -o terraform-provider-shc .
+      - name: Build provider
+        run: go build -o terraform-provider-shc .
+        working-directory: ../terraform-provider-shc
 
       - name: Create Pulumi project
         env:

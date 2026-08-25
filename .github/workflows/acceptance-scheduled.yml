@@ -18,11 +18,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - name: Clone shc-toolkit
+        run: git clone --depth=1 https://github.com/Amperstrand/shc-toolkit.git ../shc-toolkit
       - name: Install shc-toolkit
         run: pip install -e .
         working-directory: ../shc-toolkit
-      - name: Clone shc-toolkit
-        run: git clone --depth=1 https://github.com/Amperstrand/shc-toolkit.git ../shc-toolkit
       - name: Run acceptance tests
         env:
           SHC_API_KEY: ${{ secrets.SHC_API_KEY }}

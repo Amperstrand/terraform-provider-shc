@@ -40,13 +40,13 @@ func (f flexibleString) GoString() string {
 }
 
 type OrderRequest struct {
-	Hostname      string            `json:"hostname"`
-	PackageID     int64             `json:"package_id"`
-	PricingID     int64             `json:"pricing_id"`
-	OrderFormID   int64             `json:"order_form_id"`
-	ModuleGroupID int64             `json:"module_group_id,omitempty"`
-	PackageGroupID int64            `json:"package_group_id,omitempty"`
-	User          string            `json:"user,omitempty"`
+	Hostname       string `json:"hostname"`
+	PackageID      int64  `json:"package_id"`
+	PricingID      int64  `json:"pricing_id"`
+	OrderFormID    int64  `json:"order_form_id"`
+	ModuleGroupID  int64  `json:"module_group_id,omitempty"`
+	PackageGroupID int64  `json:"package_group_id,omitempty"`
+	User           string `json:"user,omitempty"`
 	// SSHKey rides the ORDER so SHC injects it into the cloud-init seed
 	// disk (first-boot install on NVMe/SSD/HDD). Requires the full
 	// storefront triple above — see sizes.go lineModuleGroupIDs note.
@@ -128,8 +128,8 @@ type BalanceResponse struct {
 	// (a scalar here failed json.Unmarshal on the WHOLE balance response
 	// and blocked every order with "cannot verify balance" — regression
 	// pinned by TestGetBalance_LiveCreditArrayShape)
-	Credit   []CreditEntry  `json:"credit"`
-	Currency string         `json:"currency"`
+	Credit   []CreditEntry `json:"credit"`
+	Currency string        `json:"currency"`
 	// Balances is the array form returned by the API, e.g.:
 	//   {"balances": [{"currency": "USD", "available_credit": "1.47"}]}
 	Balances []BalanceEntry `json:"balances"`
