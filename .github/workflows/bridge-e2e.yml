@@ -2,8 +2,11 @@ name: Bridge E2E
 
 on:
   schedule:
-    - cron: '17 8 * * *'
+    - cron: '17 8 * * 1'
   workflow_dispatch:
+
+permissions:
+  issues: write
 
 jobs:
   bridge-e2e:
@@ -80,3 +83,24 @@ jobs:
           orphans = c.reap_orphans(max_age_hours=0, dry_run=False)
           print(f'Reaped {len(orphans)} orphaned VMs')
           "
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'ci-failure'
+            });
+            if (issues.data.some(i => i.title.includes('Bridge E2E failed'))) {
+              core.info('Issue already open, skipping');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: 'Bridge E2E failed',
+              body: [`The weekly Pulumi bridge E2E failed: ${runUrl}`, '', 'Check the run log (clone/install/order steps have failed before — see commit 914797e).'].join('\n'),
+              labels: ['ci-failure', 'bug']
+            });

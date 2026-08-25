@@ -6,6 +6,9 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+permissions:
+  issues: write
+
 jobs:
   acceptance:
     runs-on: ubuntu-latest
@@ -33,11 +36,31 @@ jobs:
         env:
           SHC_API_KEY: ${{ secrets.SHC_API_KEY }}
         run: |
-          pip install shc-toolkit
-          python3 -c "
+          python3 - << 'PY'
           from shc_toolkit.client import SHCClient
           import os
-          c = SHCClient(api_key=os.environ['SHC_API_KEY'])
+          c = SHCClient(api_key=os.environ["SHC_API_KEY"])
           orphans = c.reap_orphans(max_age_hours=0, dry_run=False)
-          print(f'Reaped {len(orphans)} orphaned VMs')
-          "
+          print(f"Reaped {len(orphans)} orphaned VMs")
+          PY
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'ci-failure'
+            });
+            if (issues.data.some(i => i.title.includes('Scheduled acceptance tests failed'))) {
+              core.info('Issue already open, skipping');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: 'Scheduled acceptance tests failed',
+              body: [`The weekly scheduled acceptance test run failed: ${runUrl}`, '', 'Check the run log; re-run locally with TF_ACC=1 if needed.'].join('\n'),
+              labels: ['ci-failure', 'bug']
+            });

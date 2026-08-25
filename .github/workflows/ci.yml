@@ -27,6 +27,33 @@ jobs:
       - name: Test
         run: go test ./... -v
 
+  generated-files-drift:
+    name: sizes.go must match generator output
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+      - name: Clone shc-toolkit (generator source of truth)
+        run: git clone --depth=1 https://github.com/Amperstrand/shc-toolkit.git ../shc-toolkit
+      - name: Install toolkit deps (generator imports the package)
+        run: pip install -e ../shc-toolkit -q
+      - name: Regenerate sizes.go
+        run: python3 ../shc-toolkit/scripts/generate_sizes.py --format go --output /tmp/sizes-regen.go
+      - name: Diff committed vs generated (gofmt-normalized)
+        run: |
+          gofmt /tmp/sizes-regen.go > /tmp/sizes-fmt.go
+          if ! diff -u provider/sizes.go /tmp/sizes-fmt.go; then
+            echo "::error::provider/sizes.go differs from generator output."
+            echo "Regenerate: python3 ../shc-toolkit/scripts/generate_sizes.py --format go --output provider/sizes.go && gofmt -w provider/sizes.go"
+            exit 1
+          fi
+          echo "sizes.go matches generator output ✅"
+
   size-map-drift:
     name: Size map drift detection
     runs-on: ubuntu-latest
