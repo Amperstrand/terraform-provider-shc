@@ -63,11 +63,11 @@ TF_ACC=1 SHC_API_KEY=shc_live_... go test ./provider/ -run TestAcc -v -timeout 6
 
 1. **SHC VMs never reach `provisioning_state: "ready"`** — poll for `service_status == "active" && ip != ""` instead. The `provisioning_state` may stay `"provisioning"` forever.
 
-2. **Dev zone (Cherryvale, KS) is broken** — VMs on pkg 80–84 never provision (scheduler never assigns IP). This is SHC platform issue #28, unrelated to template or provider. NVMe/SSD/HDD in Katy, TX work fine.
+2. **Dev zone (Cherryvale, KS) — RESOLVED 2026-08-25** — issue #28 (scheduler never assigned IPs) recovered; verified pkg 80 provisions in ~90–100s. If it regresses: `../shc-toolkit/scripts/dev-zone-probe.py`.
 
 3. **debian13-cloud works fine** — earlier "deadlock" diagnosis was wrong. Default template is `debian13-cloud` everywhere.
 
-4. **Nested KVM only on Dev plans (pkg 80–84)** — NVMe/SSD/HDD plans do NOT expose VMX/SVM to guests (`/dev/kvm` absent, `vmx/svm` count=0). Verified empirically 2026-07-20. Users needing nested virtualization (QEMU/KVM-in-VM, Firecracker) must use Dev sizes. Note: the Dev zone (Cherryvale, KS) is currently broken (issue #28), which blocks nested-KVM workloads until SHC fixes the scheduler.
+4. **Nested KVM only on Dev plans (pkg 80–84)** — NVMe/SSD/HDD plans do NOT expose VMX/SVM to guests (`/dev/kvm` absent, `vmx/svm` count=0). Verified empirically 2026-07-20. Users needing nested virtualization (QEMU/KVM-in-VM, Firecracker) must use Dev sizes. The Dev zone recovered 2026-08-25 (issue #28 resolved), so nested-KVM workloads are available again.
 
 5. **Order form IDs are per-line, not per-package**:
    - nvme → 1, ssd → 7, hdd → 3, dev → 11

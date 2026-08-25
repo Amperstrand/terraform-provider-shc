@@ -387,7 +387,7 @@ pulumi up
 
 ## Known Limitations
 
-- **Dev zone (Cherryvale, KS) provisioning**: Dev VPS plans (pkg 80–84) may fail to provision — the scheduler never assigns an IP. This is an SHC platform issue (issue #28), not a provider bug. NVMe/SSD/HDD plans in Katy, TX work correctly with all templates including `debian13-cloud`. **Still broken as of 2026-08-13.**
+- **Dev zone (Cherryvale, KS) — RESOLVED**: Dev VPS provisioning (issue #28) recovered and verified 2026-08-25 (pkg 80 in ~90–100s, debian12 and debian13). Nested-KVM workloads (Dev plans only) are available again.
 - **Snapshot/backup limit**: All VPS plans (including Dev VPS) support 1 snapshot and 1 backup concurrently.
 - **Provisioning state**: SHC VMs may report `provisioning_state: "provisioning"` indefinitely even when fully operational. The provider detects readiness via `service_status == "active" && ip assigned`.
 
