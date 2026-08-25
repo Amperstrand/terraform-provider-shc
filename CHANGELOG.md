@@ -8,6 +8,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Changed
+- **CI no longer runs on push/PR.** `ci.yml` is now `workflow_dispatch` + tag push (`v*`); `integration.yml` is dispatch-only (it provisions and cancels a real VM — must never auto-run). Run on demand via `gh workflow run <name>`.
+
+### Changed
 - **Scheduled CI reduced from weekly to monthly**, staggered: acceptance-scheduled (3rd), bridge-e2e (4th). The duplicate weekly schedule on `acceptance.yml` was removed (its monthly run lives in `acceptance-scheduled.yml`; `acceptance.yml` stays manually dispatchable).
 
 ### Added
