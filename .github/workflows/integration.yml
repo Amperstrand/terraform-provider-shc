@@ -1,6 +1,7 @@
 name: Integration
 
 on:
+  workflow_dispatch:
     inputs:
       confirm:
         description: "Type 'yes' to run -- this provisions and cancels a real VM"
