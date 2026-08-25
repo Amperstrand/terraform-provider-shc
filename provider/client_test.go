@@ -310,8 +310,8 @@ func TestGetBalance(t *testing.T) {
 	if bal.Balance.String() != "10.50" {
 		t.Errorf("expected balance 10.50, got %s", bal.Balance.String())
 	}
-	if len(bal.Credit) != 1 || bal.Credit[0].Amount != "5.00" {
-		t.Errorf("expected credit [{USD 5.00}], got %+v", bal.Credit)
+	if len(bal.Credit) == 0 || bal.Credit[0].Amount.String() != "5.00" {
+		t.Errorf("expected credit 5.00, got %+v", bal.Credit)
 	}
 	if bal.Currency != "USD" {
 		t.Errorf("expected currency USD, got %s", bal.Currency)

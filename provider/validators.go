@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -105,14 +106,6 @@ func template() templateValidator {
 	return templateValidator{}
 }
 
-var knownTemplates = []string{
-	"debian12-cloud", "debian13-cloud",
-	"ubuntu2404-cloud", "ubuntu2204-cloud",
-	"fedora43-cloud", "arch-cloud", "nixos-cloud",
-	"almalinux9-cloud", "alpine323-cloud",
-	"devuan5-cloud", "openbsd79-cloud",
-}
-
 func isKnownTemplate(val string) bool {
 	for _, t := range knownTemplates {
 		if val == t {
@@ -162,7 +155,7 @@ func hostname() hostnameValidator {
 }
 
 // ---------------------------------------------------------------------------
-// Size validator: regex documents the accepted {line}-{cpu}c-{ram}gb pattern.
+// Size validator: syntactic regex pre-check + sizeMap membership (canonical).
 // ---------------------------------------------------------------------------
 
 // sizeRegex: matches nvme-2c-8gb, dev-4c-16gb, ssd-1c-4gb, hdd-1c-2gb, etc.
@@ -189,9 +182,26 @@ func (v sizeValidator) ValidateString(_ context.Context, req validator.StringReq
 			"Invalid Size",
 			fmt.Sprintf("Expected a size name in the format {line}-{cpu}c-{ram}gb (e.g. nvme-2c-8gb, dev-4c-16gb, ssd-1c-4gb), got: %q", val),
 		)
+		return
+	}
+	if _, ok := sizeMap[val]; !ok {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Unknown Size",
+			fmt.Sprintf("Size %q is syntactically valid but not in the catalog. Valid sizes: %s", val, knownSizeList()),
+		)
 	}
 }
 
 func sizeValidatorFn() sizeValidator {
 	return sizeValidator{}
+}
+
+func knownSizeList() string {
+	keys := make([]string, 0, len(sizeMap))
+	for k := range sizeMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, ", ")
 }

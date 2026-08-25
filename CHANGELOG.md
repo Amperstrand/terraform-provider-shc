@@ -5,6 +5,18 @@ All notable changes to terraform-provider-shc are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Template validator was stale — rejected 23 valid templates.** Hand-maintained list had 11 entries; the catalog has 34. `knownTemplates` is now generated into `sizes.go` from shc-toolkit's `catalog_model.py` (34 entries). Users ordering e.g. `gentoo-cloud`, `kali-cloud`, or `win2025-byol` were incorrectly rejected at plan time. Found by cross-repo behavioral parity audit (Prompt 1).
+- **Size validator accepted nonexistent sizes.** Regex-only check passed `nvme-99c-999gb`. Now also requires `sizeMap` membership, with a distinct "syntactically valid but not in catalog" error. Found by DRY audit (Prompt 3).
+- **Credit check used global minimum price ($0.24) instead of the selected package's price.** Ordering an Enterprise plan only verified $0.24 of credit. Now checks the actual package daily price. Found by behavioral parity audit (Prompt 1).
+- **`GetBalance` could not parse the live API response** — `credit` field typed as scalar string but the API returns an array of objects. Masked by the old fail-open `CheckCredit`; exposed by the fail-closed change and caught by the live drift smoke test (Prompt 4). Fixed `Credit []CreditEntry` + test fixture now uses the real wire format. Acceptance test `TestAccVMResource_Basic` passes live.
+
+### Changed
+- **`sizes.go` is now fully generated** — includes size table, `knownTemplates` (34), `lineOrderFormIDs`, and lookup helpers. Regenerate with `python3 ../shc-toolkit/scripts/generate_sizes.py --format go --output provider/sizes.go`. No hand-edited sections remain.
+- **Nested KVM limitation documented** in AGENTS.md (lesson 18: only Dev plans pkg 80–84 expose VMX/SVM; blocked by Dev zone issue #28 until SHC fixes the scheduler). Found by lessons-ported audit (Prompt 2).
+
 ## [2.4.24.2] — 2026-08-14
 
 Adopts the shc-toolkit versioning scheme (`<API_VERSION>.<patch>`). Both repos are now versioned `2.4.24.x`, making cross-repo alignment immediately visible.

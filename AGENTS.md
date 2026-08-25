@@ -55,14 +55,16 @@ TF_ACC=1 SHC_API_KEY=shc_live_... go test ./provider/ -run TestAcc -v -timeout 6
 
 3. **debian13-cloud works fine** — earlier "deadlock" diagnosis was wrong. Default template is `debian13-cloud` everywhere.
 
-4. **Order form IDs are per-line, not per-package**:
+4. **Nested KVM only on Dev plans (pkg 80–84)** — NVMe/SSD/HDD plans do NOT expose VMX/SVM to guests (`/dev/kvm` absent, `vmx/svm` count=0). Verified empirically 2026-07-20. Users needing nested virtualization (QEMU/KVM-in-VM, Firecracker) must use Dev sizes. Note: the Dev zone (Cherryvale, KS) is currently broken (issue #28), which blocks nested-KVM workloads until SHC fixes the scheduler.
+
+5. **Order form IDs are per-line, not per-package**:
    - nvme → 1, ssd → 7, hdd → 3, dev → 11
 
-5. **Credit check fails closed** — if the balance endpoint is unreachable, `CheckCredit` returns an error. Do not silently allow orders when credit state cannot be verified.
+6. **Credit check fails closed** — if the balance endpoint is unreachable, `CheckCredit` returns an error. Do not silently allow orders when credit state cannot be verified.
 
-6. **`if: always()` for CI cleanup** — GitHub Actions timeout kills cleanup code. Always use unconditional cleanup steps in acceptance test workflows.
+7. **`if: always()` for CI cleanup** — GitHub Actions timeout kills cleanup code. Always use unconditional cleanup steps in acceptance test workflows.
 
-7. **CHANGELOG discipline** — every change that adds a feature, fixes a bug, or alters behavior MUST add a CHANGELOG entry in the same commit.
+8. **CHANGELOG discipline** — every change that adds a feature, fixes a bug, or alters behavior MUST add a CHANGELOG entry in the same commit.
 
 ## Cross-repo audits
 

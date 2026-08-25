@@ -12,6 +12,7 @@ type sizeEntry struct {
 	Name       string
 	DailyPrice float64
 }
+
 var sizeMap = map[string]sizeEntry{
 	"nvme-1c-4gb":   {23, 55, 1, 4096, 8, "nvme", "NVMe VPS - Starter", 0.26},
 	"nvme-2c-8gb":   {26, 56, 2, 8192, 16, "nvme", "NVMe VPS - Standard", 0.49},
@@ -83,19 +84,46 @@ func resolveSpecs(cpu, ramMB, diskGB int64, line string) (int64, int64, error) {
 	return best.PackageID, best.PricingID, nil
 }
 
-func dailyPriceForPackage(packageID int64) (float64, bool) {
-	for _, s := range sizeMap {
-		if s.PackageID == packageID {
-			return s.DailyPrice, true
-		}
-	}
-	return 0, false
+// knownTemplates is generated from catalog_model — do not edit by hand.
+var knownTemplates = []string{
+	"almalinux10-cloud",
+	"almalinux9-cloud",
+	"alpine323-cloud",
+	"arch-cloud",
+	"cs10-cloud",
+	"debian12-cloud",
+	"debian13-cloud",
+	"devuan5-cloud",
+	"fedora42-cloud",
+	"fedora43-cloud",
+	"firecracker-cloud",
+	"freebsd14-cloud",
+	"gentoo-cloud",
+	"kali-cloud",
+	"netbsd10-cloud",
+	"nixos-cloud",
+	"ol10-cloud",
+	"ol9-cloud",
+	"openbsd79-cloud",
+	"opensuse-leap156-cloud",
+	"openwrt-cloud",
+	"pve-ve-cloud",
+	"rocky10-cloud",
+	"rocky9-cloud",
+	"ubuntu2204-cloud",
+	"ubuntu2404-cloud",
+	"ubuntu2604-cloud",
+	"win11-pro-byol",
+	"win2022-byol",
+	"win2022-core-byol",
+	"win2025-byol",
+	"win2025-core-byol",
 }
 
 var lineOrderFormIDs = map[string]int64{
 	"nvme": 1,
-	"ssd":  7,
 	"hdd":  3,
+	"ssd":  7,
 	"dev":  11,
 }
 
@@ -106,25 +134,34 @@ var lineOrderFormIDs = map[string]int64{
 // from live shc order --dry-run normalized_request, 2026-08-21).
 var lineModuleGroupIDs = map[string]int64{
 	"nvme": 4,
-	"ssd":  7,
 	"hdd":  8,
+	"ssd":  7,
 	"dev":  7,
 }
 
 var linePackageGroupIDs = map[string]int64{
 	"nvme": 3,
-	"ssd":  10,
 	"hdd":  5,
+	"ssd":  10,
 	"dev":  14,
 }
 
-
-func minDailyPrice() float64 {
-	var min float64
+func orderFormIDForPackage(packageID int64) (int64, bool) {
 	for _, s := range sizeMap {
-		if min == 0 || s.DailyPrice < min {
-			min = s.DailyPrice
+		if s.PackageID == packageID {
+			if formID, ok := lineOrderFormIDs[s.Line]; ok {
+				return formID, true
+			}
 		}
 	}
-	return min
+	return 0, false
+}
+
+func dailyPriceForPackage(packageID int64) (float64, bool) {
+	for _, s := range sizeMap {
+		if s.PackageID == packageID {
+			return s.DailyPrice, true
+		}
+	}
+	return 0, false
 }

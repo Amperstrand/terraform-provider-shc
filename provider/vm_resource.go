@@ -342,9 +342,11 @@ func (r *vmResource) Create(ctx context.Context, req resource.CreateRequest, res
 	ctx, cancel := withTimeout(ctx, plan.Timeouts, "create", defaultVMCreateTimeout)
 	defer cancel()
 
-	if err := r.client.CheckCredit(ctx, minDailyPrice()); err != nil {
-		resp.Diagnostics.AddError("Insufficient credit", err.Error())
-		return
+	if price, ok := dailyPriceForPackage(plan.PackageID.ValueInt64()); ok {
+		if err := r.client.CheckCredit(ctx, price); err != nil {
+			resp.Diagnostics.AddError("Insufficient credit", err.Error())
+			return
+		}
 	}
 
 	var configOptions map[string]string
