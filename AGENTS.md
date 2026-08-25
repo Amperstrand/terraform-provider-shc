@@ -34,6 +34,18 @@ The script reads from `catalog_model.py` (no network call). Prices match the liv
 7. Run: `go vet ./provider/`
 8. **Add a CHANGELOG entry.**
 
+## CI workflows
+
+**Trigger policy**: nothing runs on push/PR — everything is `workflow_dispatch` (run on demand) + tag push (`v*`) + monthly schedule. `integration.yml` and acceptance tests provision REAL VMs and are dispatch/schedule-only, never tag-triggered. All scheduled failures auto-create deduplicated `ci-failure` issues.
+
+| Workflow | Trigger |
+|----------|---------|
+| `ci.yml` (build/vet/test + generated-files-drift + size-map-drift) | dispatch, tag |
+| `integration.yml` (real VM smoke) | dispatch only |
+| `acceptance.yml` / `acceptance-scheduled.yml` | dispatch / monthly (3rd) |
+| `bridge-e2e.yml` (Pulumi bridge) | dispatch, monthly (4th) |
+| `zone-benchmarks.yml` | dispatch only |
+
 ## Testing
 
 ```bash
