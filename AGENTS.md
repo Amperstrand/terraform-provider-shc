@@ -87,3 +87,9 @@ Semantic parity: `../shc-toolkit/docs/cross-repo-audit-prompts.md` contains four
 ## Version scheme
 
 Mirrors shc-toolkit: `<SHC_API_VERSION>.<patch>` (e.g., `2.4.24.2`). Both repos targeting the same API version share the same prefix, making cross-repo alignment immediately visible. The patch number is independent per repo.
+
+## SHC billing semantics (agents must know)
+
+SHC bills by **service existence, not power state** — a stopped VM still accrues its full daily price ($0.24–$3.54/day). Cleanup means **cancel** (`cancel_vm(id, immediate=True)`), never stop/shutdown. Immediate cancel refunds the unused part of the current day; renewals otherwise draw down credit silently (the transaction ledger only shows credits — spend is invisible there).
+
+Rules: every VM an agent creates for testing is canceled in the same session unless the user takes ownership; never end a task with a VM `stopped` (billable debris — incident: 9 days stopped = $3.12); audit current billables with `physical-router-test-automation/scripts/cost-status.py` and register long-lived VMs in its `config/approved-resources.yaml`.
