@@ -16,6 +16,9 @@ import (
 
 const defaultBaseURL = "https://blesta.sovereignhybridcompute.com/user-api/v2"
 
+// defaultUserAgent: placeholder until Configure injects the ldflags version.
+const defaultUserAgent = "terraform-provider-shc/dev (SHC API v2.4.24)"
+
 var ErrVMNotFound = errors.New("vm not found")
 
 const (
@@ -91,9 +94,17 @@ func retryOnLockValue[T any](ctx context.Context, fn func() (T, error)) (T, erro
 type SHCClient struct {
 	baseURL             string
 	apiKey              string
+	userAgent           string
 	httpClient          *http.Client
 	costTracker         *CostTracker
 	orderIdempotencyKey string
+}
+
+// SetUserAgent overrides the User-Agent header sent on every request.
+// Configure calls it with the ldflags-injected provider version so the
+// header always matches the build instead of a hardcoded patch number.
+func (c *SHCClient) SetUserAgent(ua string) {
+	c.userAgent = ua
 }
 
 func NewSHCClient(apiKey, endpoint string) *SHCClient {
@@ -124,6 +135,7 @@ func NewSHCClient(apiKey, endpoint string) *SHCClient {
 	c := &SHCClient{
 		baseURL:    strings.TrimRight(endpoint, "/"),
 		apiKey:     apiKey,
+		userAgent:  defaultUserAgent,
 		httpClient: retryClient.StandardClient(),
 	}
 	c.costTracker = NewCostTracker(c)
@@ -171,7 +183,7 @@ func (c *SHCClient) doRequestOnce(ctx context.Context, method, path string, body
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "terraform-provider-shc/2.4.24.2 (SHC API v2.4.24)")
+	req.Header.Set("User-Agent", c.userAgent)
 	if confirmID != "" {
 		req.Header.Set("X-User-Api-Confirm", confirmID)
 	}

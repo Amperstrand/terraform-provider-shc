@@ -75,6 +75,7 @@ func (p *SHCProvider) Configure(ctx context.Context, req provider.ConfigureReque
 	}
 
 	client := NewSHCClient(apiKey, endpoint)
+	client.SetUserAgent(fmt.Sprintf("terraform-provider-shc/%s (SHC API v2.4.24)", p.version))
 	resp.ResourceData = client
 	resp.DataSourceData = client
 }

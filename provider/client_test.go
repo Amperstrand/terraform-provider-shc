@@ -660,3 +660,29 @@ func TestUpgradeVM_ConfirmationFlow(t *testing.T) {
 		t.Errorf("expected confirm ID 'conf-upgrade-xyz', got %q", receivedConfirmID)
 	}
 }
+
+func TestUserAgent(t *testing.T) {
+	var gotUA string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data": {}}`))
+	}))
+	defer server.Close()
+
+	client := NewSHCClient("test-key", server.URL)
+	if _, err := client.GetOrder(context.Background(), "1"); err != nil {
+		t.Fatalf("default UA request failed: %v", err)
+	}
+	if gotUA != defaultUserAgent {
+		t.Errorf("expected default UA %q, got %q", defaultUserAgent, gotUA)
+	}
+
+	client.SetUserAgent("terraform-provider-shc/9.9.9-test (SHC API v2.4.24)")
+	if _, err := client.GetOrder(context.Background(), "1"); err != nil {
+		t.Fatalf("overridden UA request failed: %v", err)
+	}
+	if gotUA != "terraform-provider-shc/9.9.9-test (SHC API v2.4.24)" {
+		t.Errorf("expected overridden UA, got %q", gotUA)
+	}
+}

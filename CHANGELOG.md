@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- **User-Agent no longer hardcodes a provider patch number.** `client.go` sent `terraform-provider-shc/2.4.24.2` regardless of build; the header drifted silently on every release. `NewSHCClient` now defaults to `terraform-provider-shc/dev (SHC API v2.4.24)` and `Configure` overrides it via the new `SHCClient.SetUserAgent` with the ldflags-injected version, so the UA always matches the build.
+
 ### Changed
 - **CI no longer runs on push/PR.** `ci.yml` is now `workflow_dispatch` + tag push (`v*`); `integration.yml` is dispatch-only (it provisions and cancels a real VM — must never auto-run). Run on demand via `gh workflow run <name>`.
 
