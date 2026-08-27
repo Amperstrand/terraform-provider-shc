@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+- **`power_state` and `auto_cancel` schema descriptions now carry the SHC-specific lifecycle contracts at plan time** (researched against AWS/GCP patterns): unlike AWS/GCP where a stopped instance stops accruing compute charges, SHC bills the FULL daily price while a VM exists in `stopped` state — only destroy (immediate cancel + prorated refund) ends billing (the apply-time warning stays); `auto_cancel` documents that end-of-term cancellation is scheduled only after active+IP because an end-of-term cancel before the order invoice settles voids it and wedges the service in pending forever. Cross-provider comparison: destroy→terminate (AWS `TerminateInstances`, GCP delete) ≈ our `Delete()`→`CancelVM(immediate)`; GCP's `desired_status` ≈ our `power_state`; AWS deletion protection (`disable_api_termination`/`force_destroy`) is covered here by SHC's server-side confirm-gate on cancel.
+
 ### Fixed
 - **User-Agent no longer hardcodes a provider patch number.** `client.go` sent `terraform-provider-shc/2.4.24.2` regardless of build; the header drifted silently on every release. `NewSHCClient` now defaults to `terraform-provider-shc/dev (SHC API v2.4.24)` and `Configure` overrides it via the new `SHCClient.SetUserAgent` with the ldflags-injected version, so the UA always matches the build.
 

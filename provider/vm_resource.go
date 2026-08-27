@@ -166,16 +166,24 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 				Description: "SSH public key: rides the order (cloud-init seed) AND is apply-live'd with verification after provisioning. WriteOnly: read from CONFIG at create (plans strip it) and never stored in state.",
 			},
 			"auto_cancel": resourceschema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "If true (default), schedules an end-of-term cancellation so the VPS does not auto-renew.",
-				Default:     booldefault.StaticBool(true),
+				Optional: true,
+				Computed: true,
+				Description: "If true (default), schedules an end-of-term cancellation after the VM reaches " +
+					"active+IP so it does not auto-renew. Scheduled only after readiness — an " +
+					"end-of-term cancel issued before the order invoice settles voids it and " +
+					"wedges the service in pending forever (SHC live-earned contract).",
+				Default: booldefault.StaticBool(true),
 			},
 			"power_state": resourceschema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "The desired power state: `running` or `stopped`. Defaults to `running`. Changing this triggers a start/stop action without replacing the VM.",
-				Default:     stringdefault.StaticString("running"),
+				Optional: true,
+				Computed: true,
+				Description: "The desired power state: `running` or `stopped`. Defaults to `running`. " +
+					"Changing this triggers a start/stop action without replacing the VM. " +
+					"Unlike AWS/GCP (where a stopped instance stops accruing compute charges), " +
+					"SHC bills the FULL daily price while the VM exists in `stopped` state — " +
+					"only destroying the resource (terraform destroy = immediate cancel, " +
+					"prorated refund of the unused day) ends billing.",
+				Default: stringdefault.StaticString("running"),
 				Validators: []validator.String{
 					powerState(),
 				},
