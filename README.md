@@ -377,6 +377,12 @@ pulumi up
 
 → **[Full migration guide from shc-pulumi](https://github.com/Amperstrand/shc-pulumi/blob/main/MIGRATION-TO-BRIDGE.md)**
 
+Lifecycle semantics are inherited from the provider unchanged through the
+bridge: `pulumi destroy` → `CancelVM(immediate)` (billing ends, refund);
+`power_state` is a mutable property (`PowerState`) whose `"stopped"` value
+pauses without destroying — and still bills. See
+[lifecycle-alignment.md](docs/lifecycle-alignment.md).
+
 ### Why the bridge?
 
 | | TF Provider + Bridge | Deprecated shc-pulumi |
@@ -384,6 +390,19 @@ pulumi up
 | Features | HTTP retry, input validators, idempotency keys, acceptance-tested CRUD | Subset, mocked tests only |
 | Maintenance | Auto-syncs with this repo | Manual, archived |
 | Resources | All (VM, snapshot, backup, firewall, rDNS) | VM + snapshot only |
+
+## Lifecycle Semantics
+
+Aligned with AWS/GCP IaC conventions, with SHC's divergences documented and
+reasoned. The short version:
+
+- **`terraform destroy` terminates (SHC: *cancels*, immediate + prorated refund)** — never stops. Billing ends.
+- **`power_state = "stopped"` pauses without destroying** (GCP `desired_status` pattern) — but unlike AWS/GCP, a stopped SHC VM **keeps billing its full daily price**. Stop is not a cost control here.
+- **Deletion protection** = SHC's server-side confirm-gate on destructive ops + Terraform-native `prevent_destroy`. No extra attribute needed.
+- **Ephemeral by default**: `auto_cancel = true` (destroy-at-term) — the inverse of cloud renewal-by-default, chosen deliberately.
+- **Orphan hygiene**: hourly reaper (AWS-sweeper equivalent) + opt-in on-VM self-destruct timer.
+
+→ **[Full mapping table and design reasoning: `docs/lifecycle-alignment.md`](docs/lifecycle-alignment.md)**
 
 ## Known Limitations
 

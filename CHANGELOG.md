@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- **`docs/lifecycle-alignment.md` + README "Lifecycle Semantics" section — industry-aligned vocabulary and design reasoning.** Full mapping table against AWS EC2 / GCP GCE: destroy→terminate (== our `CancelVM(immediate)`; never stop), `power_state` == GCP `desired_status` (attribute, not AWS action-resources — reasoning documented), deletion protection == SHC's server-side confirm-gate + native `prevent_destroy` (no extra attribute — AWS needs one only because raw EC2 has no gate), ephemeral-by-default `auto_cancel` (deliberate inverse of cloud renewal-by-default), readiness = active+IP (a status field is a claim; active + assigned IP is proof), reaper == provider test sweepers, self-destruct timer (no cloud equivalent — daily-term-by-existence billing makes controller-dead leaks expensive). The Pulumi-bridge section documents that `pulumi destroy` inherits the same semantics unchanged.
+
 ### Changed
 - **`power_state` and `auto_cancel` schema descriptions now carry the SHC-specific lifecycle contracts at plan time** (researched against AWS/GCP patterns): unlike AWS/GCP where a stopped instance stops accruing compute charges, SHC bills the FULL daily price while a VM exists in `stopped` state — only destroy (immediate cancel + prorated refund) ends billing (the apply-time warning stays); `auto_cancel` documents that end-of-term cancellation is scheduled only after active+IP because an end-of-term cancel before the order invoice settles voids it and wedges the service in pending forever. Cross-provider comparison: destroy→terminate (AWS `TerminateInstances`, GCP delete) ≈ our `Delete()`→`CancelVM(immediate)`; GCP's `desired_status` ≈ our `power_state`; AWS deletion protection (`disable_api_termination`/`force_destroy`) is covered here by SHC's server-side confirm-gate on cancel.
 
