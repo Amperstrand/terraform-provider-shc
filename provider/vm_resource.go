@@ -584,6 +584,13 @@ func (r *vmResource) Update(ctx context.Context, req resource.UpdateRequest, res
 				resp.Diagnostics.AddError("Error stopping VM", err.Error())
 				return
 			}
+			resp.Diagnostics.AddWarning(
+				"Stopped VPS keeps billing",
+				fmt.Sprintf("VPS %s still accrues its full daily price while stopped (SHC bills by service existence, not power state). "+
+					"Set power_state back to \"running\", or destroy the resource (terraform destroy cancels the service and refunds the unused day). "+
+					"With auto_cancel=true (the default) exposure is limited to the current term.", state.ServiceID.ValueString()),
+			)
+			tflog.Warn(ctx, "VPS stopped but still billing; destroy or restart to stop charges", map[string]interface{}{"service_id": state.ServiceID.ValueString()})
 		case "running":
 			if err := r.client.SetPowerState(ctx, state.ServiceID.ValueString(), "start"); err != nil {
 				resp.Diagnostics.AddError("Error starting VM", err.Error())
