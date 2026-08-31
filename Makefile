@@ -28,3 +28,12 @@ tidy:
 
 test:
 	go test -v ./...
+
+.PHONY: sync-catalog
+
+# Refresh the embedded catalog artifact from the shc-toolkit sibling repo
+# (single source of truth; parity is enforced by shc-toolkit's
+# scripts/audit_cross_repo.py "Catalog Artifact Parity" check).
+sync-catalog:
+	cp ../shc-toolkit/catalog.json provider/catalog.json
+	@echo "Synced provider/catalog.json — commit the diff."
