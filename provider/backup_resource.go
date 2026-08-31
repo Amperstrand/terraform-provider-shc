@@ -84,16 +84,13 @@ func (r *backupResource) Configure(_ context.Context, req resource.ConfigureRequ
 }
 
 func (r *backupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.Split(req.ID, ":")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		resp.Diagnostics.AddError(
-			"Invalid import ID",
-			"Expected import ID in the format service_id:backup_id.",
-		)
+	first, second, err := parseImportID(req.ID, "service_id:backup_id")
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("backup_id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), first)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("backup_id"), second)...)
 }
 
 func (r *backupResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

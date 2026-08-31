@@ -83,16 +83,13 @@ func (r *rdnsResource) Configure(_ context.Context, req resource.ConfigureReques
 }
 
 func (r *rdnsResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.Split(req.ID, ":")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		resp.Diagnostics.AddError(
-			"Invalid import ID",
-			"Expected import ID in the format service_id:ip.",
-		)
+	first, second, err := parseImportID(req.ID, "service_id:ip")
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ip"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), first)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ip"), second)...)
 }
 
 func (r *rdnsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

@@ -116,25 +116,22 @@ func (r *firewallRuleResource) Configure(_ context.Context, req resource.Configu
 }
 
 func (r *firewallRuleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.Split(req.ID, ":")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		resp.Diagnostics.AddError(
-			"Invalid import ID",
-			"Expected import ID in the format service_id:position.",
-		)
+	serviceID, positionPart, err := parseImportID(req.ID, "service_id:position")
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
 	}
 
 	var position int64
-	if _, err := fmt.Sscanf(parts[1], "%d", &position); err != nil {
+	if _, err := fmt.Sscanf(positionPart, "%d", &position); err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid import ID",
-			fmt.Sprintf("Expected position to be an integer, got %q.", parts[1]),
+			fmt.Sprintf("Expected position to be an integer, got %q.", positionPart),
 		)
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), serviceID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("position"), position)...)
 }
 

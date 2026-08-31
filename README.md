@@ -215,6 +215,8 @@ Manages a snapshot of an SHC VPS instance.
 | `snapshot_id` | string | yes      | The ID of the created snapshot. |
 | `status`      | string | yes      | The status of the snapshot. |
 
+Import with `terraform import shc_snapshot.example "service_id:snapshot_id"`.
+
 ### shc_backup
 
 Manages a backup of an SHC VPS instance.
@@ -228,6 +230,8 @@ Manages a backup of an SHC VPS instance.
 |-------------|--------|----------|-------------|
 | `backup_id` | string | yes      | The ID of the created backup. |
 | `status`    | string | yes      | The status of the backup. |
+
+Import with `terraform import shc_backup.example "service_id:backup_id"`.
 
 ### shc_firewall_rule
 
@@ -331,6 +335,24 @@ data "shc_vm" "existing" {
   service_id = "123"
 }
 ```
+
+### shc_vms (data source)
+
+Lists all VMs on the account, optionally filtered by `status` (exact service status), `zone` (`katy` — NVMe/SSD/HDD lines, or `cherryvale` — Dev VPS), or `package` (case-insensitive substring of the package name). Useful for inventory and cost analysis.
+
+```hcl
+# All active Dev-zone VMs
+data "shc_vms" "dev_active" {
+  zone   = "cherryvale"
+  status = "active"
+}
+
+output "dev_hostnames" {
+  value = data.shc_vms.dev_active.vms[*].hostname
+}
+```
+
+Each entry exposes `service_id`, `hostname`, `status`, `provisioning_state`, `ip`, and `package`.
 
 ## Pulumi via Terraform Bridge
 

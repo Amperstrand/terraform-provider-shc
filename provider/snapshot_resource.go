@@ -107,16 +107,13 @@ func (r *snapshotResource) Configure(_ context.Context, req resource.ConfigureRe
 }
 
 func (r *snapshotResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.Split(req.ID, ":")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		resp.Diagnostics.AddError(
-			"Invalid import ID",
-			"Expected import ID in the format service_id:snapshot_id.",
-		)
+	first, second, err := parseImportID(req.ID, "service_id:snapshot_id")
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("snapshot_id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), first)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("snapshot_id"), second)...)
 }
 
 func (r *snapshotResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
