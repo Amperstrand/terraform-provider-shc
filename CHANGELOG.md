@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+- **Stale "hourly reaper" claims corrected** — README and `docs/lifecycle-alignment.md` said the shc-toolkit reaper runs hourly; it was eased to daily (05:23 UTC) on 2026-08-27 (primary cleanup is the on-VM self-destruct timers + the lab machine's local cron). Found by the 2026-08-31 cross-repo doc audit.
+
 ### Added
 - **`docs/lifecycle-alignment.md` + README "Lifecycle Semantics" section — industry-aligned vocabulary and design reasoning.** Full mapping table against AWS EC2 / GCP GCE: destroy→terminate (== our `CancelVM(immediate)`; never stop), `power_state` == GCP `desired_status` (attribute, not AWS action-resources — reasoning documented), deletion protection == SHC's server-side confirm-gate + native `prevent_destroy` (no extra attribute — AWS needs one only because raw EC2 has no gate), ephemeral-by-default `auto_cancel` (deliberate inverse of cloud renewal-by-default), readiness = active+IP (a status field is a claim; active + assigned IP is proof), reaper == provider test sweepers, self-destruct timer (no cloud equivalent — daily-term-by-existence billing makes controller-dead leaks expensive). The Pulumi-bridge section documents that `pulumi destroy` inherits the same semantics unchanged.
 

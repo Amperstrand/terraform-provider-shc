@@ -400,7 +400,7 @@ reasoned. The short version:
 - **`power_state = "stopped"` pauses without destroying** (GCP `desired_status` pattern) — but unlike AWS/GCP, a stopped SHC VM **keeps billing its full daily price**. Stop is not a cost control here.
 - **Deletion protection** = SHC's server-side confirm-gate on destructive ops + Terraform-native `prevent_destroy`. No extra attribute needed.
 - **Ephemeral by default**: `auto_cancel = true` (destroy-at-term) — the inverse of cloud renewal-by-default, chosen deliberately.
-- **Orphan hygiene**: hourly reaper (AWS-sweeper equivalent) + opt-in on-VM self-destruct timer.
+- **Orphan hygiene**: daily reaper (AWS-sweeper equivalent) + opt-in on-VM self-destruct timer.
 
 → **[Full mapping table and design reasoning: `docs/lifecycle-alignment.md`](docs/lifecycle-alignment.md)**
 

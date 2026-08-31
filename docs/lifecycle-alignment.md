@@ -14,7 +14,7 @@ arriving from other clouds and for reviewers auditing our design choices.
 | Declared power state | — | `desired_status` | — | `power_state` |
 | Observed state (drift detection) | `instance_state` | `current_status` | `service_status` + `provisioning_state` | `status`, `provisioning_state`, `ip` (computed) |
 | Guard against destruction | `disable_api_termination` (+ `force_destroy` to override) | `deletion_policy = "PREVENT"` (select resources) | **confirm-gate**: destructive ops 409 with a single-use `confirmation_id`; provider auto-confirms only the operation Terraform explicitly requested | server-side confirm-gate + Terraform-native `lifecycle { prevent_destroy }` |
-| Clean up forgotten test resources | provider **test sweepers** | — (sweeper pattern shared) | hourly **reaper** (`reap-orphan-vms.yml`, shc-toolkit `reap_orphans()`) | same, plus opt-in on-VM self-destruct timer |
+| Clean up forgotten test resources | provider **test sweepers** | — (sweeper pattern shared) | daily **reaper** (`reap-orphan-vms.yml`, shc-toolkit `reap_orphans()`) | same, plus opt-in on-VM self-destruct timer |
 | Billing period | per-second (running only) | per-second (running only) | **daily term**; renewed from account credit | `term` (days), `auto_cancel` |
 
 ## Design decisions and reasoning
@@ -87,7 +87,7 @@ a claim; a reachable SSH endpoint is proof.
 
 Two layers, mirroring AWS's provider test **sweepers** and going one further:
 
-- **Reaper** (hourly CI, shc-toolkit `reap_orphans()`): destroys orphaned
+- **Reaper** (daily CI, shc-toolkit `reap_orphans()`): destroys orphaned
   VMs matching test hostname prefixes after a 2-hour age gate — the same
   job AWS provider sweeper runs perform, scheduled.
 - **Self-destruct timer** (opt-in, `shc github-runner provision
