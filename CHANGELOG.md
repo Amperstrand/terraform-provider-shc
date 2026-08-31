@@ -8,6 +8,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- **Provider-level configuration: `timeout_seconds`, `max_retries`, `rate_limit_rps` (#37).** The provider block gains three optional tuning knobs wired through a new `NewSHCClientWithOptions` constructor: per-request timeout (default 60s), retry count on 429/5xx (default 3, `0` disables — retry machinery already existed via go-retryablehttp, it was just hardcoded), and a client-wide token-bucket rate limiter (`x/time/rate`, default unlimited). Behavioral unit tests pin the contract: `max_retries = 0` makes exactly one attempt, defaults make `1 + 3`, a 100ms timeout fails fast past a slow handler, and the limiter measurably throttles.
 - **`data.shc_vms` filtering (#36): `status`, `zone`, `package`.** The list data source gains three optional filters — exact service status, zone (`katy` for NVMe/SSD/HDD lines, `cherryvale` for Dev VPS, validated one-of), and case-insensitive package-name substring. Filtering is a pure function over the parsed list (`filterVMItems`), pinned by table-driven unit tests; the data source is now documented in the README for the first time.
 - **Release automation via GoReleaser (#31).** `release.yml` (tag push `v*` + dispatch): `go test` then GoReleaser v2 → GitHub Release with the documented linux/darwin × amd64/arm64 matrix and SHA256SUMS. Releases were manual until now; `.goreleaser.yml` already existed.
 

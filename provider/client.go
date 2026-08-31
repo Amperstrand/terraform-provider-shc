@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"golang.org/x/time/rate"
 )
 
 const defaultBaseURL = "https://blesta.sovereignhybridcompute.com/user-api/v2"
@@ -107,13 +108,32 @@ func (c *SHCClient) SetUserAgent(ua string) {
 	c.userAgent = ua
 }
 
+// ClientOptions tunes the provider's HTTP behavior (issue #37). Zero
+// values select the library defaults: 60s per-request timeout, 3 retries,
+// no rate limiting.
+type ClientOptions struct {
+	Timeout      time.Duration // per-request; 0 = 60s default
+	MaxRetries   int           // retryablehttp RetryMax; 0 = 3 (default), negative = disable
+	RateLimitRPS float64       // max requests/second; 0 = unlimited
+}
+
 func NewSHCClient(apiKey, endpoint string) *SHCClient {
+	return NewSHCClientWithOptions(apiKey, endpoint, ClientOptions{})
+}
+
+func NewSHCClientWithOptions(apiKey, endpoint string, opts ClientOptions) *SHCClient {
 	if endpoint == "" {
 		endpoint = defaultBaseURL
 	}
+	if opts.Timeout <= 0 {
+		opts.Timeout = 60 * time.Second
+	}
+	if opts.MaxRetries == 0 {
+		opts.MaxRetries = httpMaxRetries
+	}
 
 	retryClient := retryablehttp.NewClient()
-	retryClient.RetryMax = httpMaxRetries
+	retryClient.RetryMax = opts.MaxRetries
 	retryClient.RetryWaitMin = httpRetryBase
 	retryClient.RetryWaitMax = httpRetryMax
 	retryClient.CheckRetry = func(ctx context.Context, resp *http.Response, err error) (bool, error) {
@@ -129,17 +149,39 @@ func NewSHCClient(apiKey, endpoint string) *SHCClient {
 		return false, nil
 	}
 	retryClient.Backoff = retryablehttp.DefaultBackoff
-	retryClient.HTTPClient.Timeout = 60 * time.Second
+	retryClient.HTTPClient.Timeout = opts.Timeout
 	retryClient.Logger = nil
+
+	var transport http.RoundTripper = retryClient.StandardClient().Transport
+	if opts.RateLimitRPS > 0 {
+		transport = &rateLimitedTransport{
+			inner:   transport,
+			limiter: rate.NewLimiter(rate.Limit(opts.RateLimitRPS), 1),
+		}
+	}
 
 	c := &SHCClient{
 		baseURL:    strings.TrimRight(endpoint, "/"),
 		apiKey:     apiKey,
 		userAgent:  defaultUserAgent,
-		httpClient: retryClient.StandardClient(),
+		httpClient: &http.Client{Transport: transport, Timeout: opts.Timeout},
 	}
 	c.costTracker = NewCostTracker(c)
 	return c
+}
+
+// rateLimitedTransport throttles every request to the configured rate
+// before delegating; context cancellation aborts the wait.
+type rateLimitedTransport struct {
+	inner   http.RoundTripper
+	limiter *rate.Limiter
+}
+
+func (t *rateLimitedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := t.limiter.Wait(req.Context()); err != nil {
+		return nil, err
+	}
+	return t.inner.RoundTrip(req)
 }
 
 func stripNonJSONPrefix(data []byte) []byte {

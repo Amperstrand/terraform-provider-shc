@@ -5,7 +5,10 @@ package provider
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -13,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/metaschema"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -21,8 +25,23 @@ type SHCProvider struct {
 }
 
 type SHCProviderModel struct {
-	APIKey   types.String `tfsdk:"api_key"`
-	Endpoint types.String `tfsdk:"endpoint"`
+	APIKey       types.String  `tfsdk:"api_key"`
+	Endpoint     types.String  `tfsdk:"endpoint"`
+	TimeoutSecs  types.Int64   `tfsdk:"timeout_seconds"`
+	MaxRetries   types.Int64   `tfsdk:"max_retries"`
+	RateLimitRPS types.Float64 `tfsdk:"rate_limit_rps"`
+}
+
+// maxRetriesOption maps the schema value to the client option: unset/null
+// keeps the library default; an explicit 0 disables retries.
+func maxRetriesOption(v types.Int64) int {
+	if v.IsNull() {
+		return 0
+	}
+	if v.ValueInt64() == 0 {
+		return -1
+	}
+	return int(v.ValueInt64())
 }
 
 func New(version string) func() provider.Provider {
@@ -50,6 +69,28 @@ func (p *SHCProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *
 				Optional:    true,
 				Description: "The SHC API base URL. Defaults to https://blesta.sovereignhybridcompute.com/user-api/v2.",
 			},
+			"timeout_seconds": schema.Int64Attribute{
+				Optional:    true,
+				Description: "Per-request HTTP timeout in seconds. Defaults to 60.",
+				Validators: []validator.Int64{
+					int64validator.Between(1, 300),
+				},
+			},
+			"max_retries": schema.Int64Attribute{
+				Optional:    true,
+				Description: "Maximum retries for retryable responses (429/5xx) per request. Defaults to 3; set 0 to disable retries.",
+				Validators: []validator.Int64{
+					int64validator.AtLeast(0),
+					int64validator.AtMost(10),
+				},
+			},
+			"rate_limit_rps": schema.Float64Attribute{
+				Optional:    true,
+				Description: "Client-wide rate limit in requests per second (e.g. 2.5). Defaults to unlimited.",
+				Validators: []validator.Float64{
+					float64validator.AtLeast(0.1),
+				},
+			},
 		},
 	}
 }
@@ -74,7 +115,11 @@ func (p *SHCProvider) Configure(ctx context.Context, req provider.ConfigureReque
 		return
 	}
 
-	client := NewSHCClient(apiKey, endpoint)
+	client := NewSHCClientWithOptions(apiKey, endpoint, ClientOptions{
+		Timeout:      time.Duration(config.TimeoutSecs.ValueInt64()) * time.Second,
+		MaxRetries:   maxRetriesOption(config.MaxRetries),
+		RateLimitRPS: config.RateLimitRPS.ValueFloat64(),
+	})
 	client.SetUserAgent(fmt.Sprintf("terraform-provider-shc/%s (SHC API v2.4.24)", p.version))
 	resp.ResourceData = client
 	resp.DataSourceData = client
