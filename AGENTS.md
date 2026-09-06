@@ -93,3 +93,14 @@ Mirrors shc-toolkit: `<SHC_API_VERSION>.<patch>` (e.g., `2.4.24.2`). Both repos 
 SHC bills by **service existence, not power state** — a stopped VM still accrues its full daily price ($0.24–$3.54/day). Cleanup means **cancel** (`cancel_vm(id, immediate=True)`), never stop/shutdown. Immediate cancel refunds the unused part of the current day; renewals otherwise draw down credit silently (the transaction ledger only shows credits — spend is invisible there).
 
 Rules: every VM an agent creates for testing is canceled in the same session unless the user takes ownership; never end a task with a VM `stopped` (billable debris — incident: 9 days stopped = $3.12); audit current billables with `physical-router-test-automation/scripts/cost-status.py` and register long-lived VMs in its `config/approved-resources.yaml`.
+
+## External posting (owner directive 2026-09-06 — CHANNEL rule)
+
+Agents never post on non-member repos — no `gh` writes (issues, PRs,
+comments, reviews, gists), not even with per-text owner sign-off; the
+owner does the copy-paste into GitHub themselves. Member orgs (verify:
+`gh api user/orgs`; 2026-09-06: Amperstrand, OpenTollGate, net4sats,
+FreedomTechFeed) keep the existing owner-gate flow. Read the target
+repo CONTRIBUTING/AI policy before drafting anything upstream.
+Canonical text: lightning-playground AGENTS.md (standing rule UPDATE
+2026-09-06).
