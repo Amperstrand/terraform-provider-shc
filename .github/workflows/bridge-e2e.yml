@@ -42,7 +42,11 @@ jobs:
         env:
           SHC_API_KEY: ${{ secrets.SHC_API_KEY }}
           PULUMI_CONFIG_PASSPHRASE: bridge-e2e
-          PATH: /tmp/tf-provider:${{ env.PATH }}
+          # PATH is extended inside the run script (export PATH=...).
+          # Setting `PATH: /tmp/tf-provider:${{ env.PATH }}` here CLOBBERS
+          # it — env.PATH is empty in the env context, so the shell lost
+          # /usr/bin ("mkdir: command not found", 09-09 run) and every
+          # command after ran from the workspace instead of /tmp/bridge-e2e.
         run: |
           mkdir -p /tmp/bridge-e2e && cd /tmp/bridge-e2e
           pulumi login --local
