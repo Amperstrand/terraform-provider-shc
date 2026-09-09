@@ -54,7 +54,9 @@ jobs:
           cp "$GITHUB_WORKSPACE/terraform-provider-shc" /tmp/tf-provider/
           export PATH="/tmp/tf-provider:$PATH"
           export PYTHONPATH="$PWD/sdks/shc"
-          pulumi stack init dev
+          # pulumi new scaffolds a 'dev' stack on modern CLIs — select if
+          # it exists, init otherwise.
+          pulumi stack select dev || pulumi stack init dev
           pulumi config set shc:apiKey "$SHC_API_KEY" --secret
           pulumi package add terraform-provider /tmp/tf-provider/terraform-provider-shc
 
