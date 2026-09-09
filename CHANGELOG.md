@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- **Bridge E2E: workflow failed at its own clone step for six consecutive runs (#51, 2026-08-22 → 09-09).** `git clone ... ../terraform-provider-shc` targeted the same path as the job's own checkout (destination exists, exit 128), and the later `cp ../terraform-provider-shc/...` from `/tmp/bridge-e2e` resolved to a nonexistent path — the bridge path was never actually exercised by any of those runs. The self-clone is gone (the checkout IS the provider under test — which also means the E2E now tests the pushed commit instead of a fresh clone of main), the build runs in the workspace, and the binary copy uses `$GITHUB_WORKSPACE`. Verified by dispatch: run proceeds past clone/build into the Pulumi project step.
+
 ### Added
 - **Provider-level configuration: `timeout_seconds`, `max_retries`, `rate_limit_rps` (#37).** The provider block gains three optional tuning knobs wired through a new `NewSHCClientWithOptions` constructor: per-request timeout (default 60s), retry count on 429/5xx (default 3, `0` disables — retry machinery already existed via go-retryablehttp, it was just hardcoded), and a client-wide token-bucket rate limiter (`x/time/rate`, default unlimited). Behavioral unit tests pin the contract: `max_retries = 0` makes exactly one attempt, defaults make `1 + 3`, a 100ms timeout fails fast past a slow handler, and the limiter measurably throttles.
 - **`data.shc_vms` filtering (#36): `status`, `zone`, `package`.** The list data source gains three optional filters — exact service status, zone (`katy` for NVMe/SSD/HDD lines, `cherryvale` for Dev VPS, validated one-of), and case-insensitive package-name substring. Filtering is a pure function over the parsed list (`filterVMItems`), pinned by table-driven unit tests; the data source is now documented in the README for the first time.

@@ -31,12 +31,12 @@ jobs:
       - name: Install shc-toolkit
         run: pip install -e ../shc-toolkit
 
-      - name: Clone terraform-provider-shc
-        run: git clone --depth=1 https://github.com/Amperstrand/terraform-provider-shc.git ../terraform-provider-shc
-
+      # No self-clone: the checkout above IS terraform-provider-shc — the old
+      # `git clone ... ../terraform-provider-shc` step collided with it
+      # (destination already exists, exit 128) and failed six consecutive
+      # runs (2026-08-22 → 09-09, issue #51).
       - name: Build provider
         run: go build -o terraform-provider-shc .
-        working-directory: ../terraform-provider-shc
 
       - name: Create Pulumi project
         env:
@@ -47,7 +47,7 @@ jobs:
           mkdir -p /tmp/bridge-e2e && cd /tmp/bridge-e2e
           pulumi login --local
           pulumi new python --name bridge-e2e --yes
-          cp ../terraform-provider-shc/terraform-provider-shc /tmp/tf-provider/
+          cp "$GITHUB_WORKSPACE/terraform-provider-shc" /tmp/tf-provider/
           export PATH="/tmp/tf-provider:$PATH"
           export PYTHONPATH="$PWD/sdks/shc"
           pulumi stack init dev
