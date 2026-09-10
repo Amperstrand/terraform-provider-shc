@@ -5,12 +5,16 @@ package provider
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework/action"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/function"
+	"github.com/hashicorp/terraform-plugin-framework/list"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/metaschema"
@@ -25,11 +29,13 @@ type SHCProvider struct {
 }
 
 type SHCProviderModel struct {
-	APIKey       types.String  `tfsdk:"api_key"`
-	Endpoint     types.String  `tfsdk:"endpoint"`
-	TimeoutSecs  types.Int64   `tfsdk:"timeout_seconds"`
-	MaxRetries   types.Int64   `tfsdk:"max_retries"`
-	RateLimitRPS types.Float64 `tfsdk:"rate_limit_rps"`
+	APIKey          types.String  `tfsdk:"api_key"`
+	Endpoint        types.String  `tfsdk:"endpoint"`
+	TimeoutSecs     types.Int64   `tfsdk:"timeout_seconds"`
+	MaxRetries      types.Int64   `tfsdk:"max_retries"`
+	RateLimitRPS    types.Float64 `tfsdk:"rate_limit_rps"`
+	AccountUsername types.String  `tfsdk:"account_username"`
+	AccountPassword types.String  `tfsdk:"account_password"`
 }
 
 // maxRetriesOption maps the schema value to the client option: unset/null
@@ -64,6 +70,18 @@ func (p *SHCProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *
 				Required:    true,
 				Sensitive:   true,
 				Description: "The SHC API key for authentication.",
+			},
+			"account_username": schema.StringAttribute{
+				Optional:    true,
+				Sensitive:   true,
+				Description: "Bare Blesta username for Basic-auth identity operations " +
+					"(minting API keys via the shc_api_key ephemeral resource). " +
+					"NOT necessarily the account email. Env: SHC_ACCOUNT_USER.",
+			},
+			"account_password": schema.StringAttribute{
+				Optional:    true,
+				Sensitive:   true,
+				Description: "Account password for Basic-auth identity operations. Env: SHC_ACCOUNT_PASSWORD.",
 			},
 			"endpoint": schema.StringAttribute{
 				Optional:    true,
@@ -120,9 +138,20 @@ func (p *SHCProvider) Configure(ctx context.Context, req provider.ConfigureReque
 		MaxRetries:   maxRetriesOption(config.MaxRetries),
 		RateLimitRPS: config.RateLimitRPS.ValueFloat64(),
 	})
+	if user := config.AccountUsername.ValueString(); user != "" {
+		if pass := config.AccountPassword.ValueString(); pass != "" {
+			client.SetBasicAuth(user, pass)
+		}
+	} else if envUser := os.Getenv("SHC_ACCOUNT_USER"); envUser != "" {
+		if envPass := os.Getenv("SHC_ACCOUNT_PASSWORD"); envPass != "" {
+			client.SetBasicAuth(envUser, envPass)
+		}
+	}
 	client.SetUserAgent(fmt.Sprintf("terraform-provider-shc/%s (SHC API v2.4.24)", p.version))
 	resp.ResourceData = client
 	resp.DataSourceData = client
+	resp.EphemeralResourceData = client
+	resp.ActionData = client
 }
 
 func (p *SHCProvider) Resources(_ context.Context) []func() resource.Resource {
@@ -132,6 +161,29 @@ func (p *SHCProvider) Resources(_ context.Context) []func() resource.Resource {
 		NewBackupResource,
 		NewFirewallRuleResource,
 		NewRDNSResource,
+	}
+}
+
+// EphemeralResources implements provider.ProviderWithEphemeralResources
+// (Terraform 1.10+).
+func (p *SHCProvider) EphemeralResources(_ context.Context) []func() ephemeral.EphemeralResource {
+	return []func() ephemeral.EphemeralResource{
+		NewAPIKeyEphemeralResource,
+	}
+}
+
+// Actions implements provider.ProviderWithActions (Terraform 1.14+).
+func (p *SHCProvider) Actions(_ context.Context) []func() action.Action {
+	return []func() action.Action{
+		NewVMRestartAction,
+	}
+}
+
+// ListResources implements provider.ProviderWithListResources
+// (Terraform 1.14+, `terraform query`).
+func (p *SHCProvider) ListResources(_ context.Context) []func() list.ListResource {
+	return []func() list.ListResource{
+		NewVMListResource,
 	}
 }
 

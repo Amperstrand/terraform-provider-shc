@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -95,6 +96,8 @@ func retryOnLockValue[T any](ctx context.Context, fn func() (T, error)) (T, erro
 type SHCClient struct {
 	baseURL             string
 	apiKey              string
+	basicUser           string
+	basicPass           string
 	userAgent           string
 	httpClient          *http.Client
 	costTracker         *CostTracker
@@ -106,6 +109,20 @@ type SHCClient struct {
 // header always matches the build instead of a hardcoded patch number.
 func (c *SHCClient) SetUserAgent(ua string) {
 	c.userAgent = ua
+}
+
+// SetBasicAuth switches the client from Bearer API-key auth to HTTP Basic.
+// Identity-class operations (minting API keys) are Basic-only: Bearer keys
+// get 403 on POST /account/api-keys. The username is the BARE Blesta login,
+// not necessarily the account email (live-earned 2026-08-27).
+func (c *SHCClient) SetBasicAuth(username, password string) {
+	c.basicUser = username
+	c.basicPass = password
+}
+
+// UsingBasicAuth reports whether Basic credentials are configured.
+func (c *SHCClient) UsingBasicAuth() bool {
+	return c.basicUser != ""
 }
 
 // ClientOptions tunes the provider's HTTP behavior (issue #37). Zero
@@ -222,7 +239,11 @@ func (c *SHCClient) doRequestOnce(ctx context.Context, method, path string, body
 		return 0, nil, fmt.Errorf("creating request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.basicUser != "" {
+		req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(c.basicUser+":"+c.basicPass)))
+	} else {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", c.userAgent)
