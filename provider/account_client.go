@@ -12,12 +12,12 @@ import (
 // again (revokeApiKey is Basic+OTP-only, so treat minted keys as
 // single-shot secrets: hand them to ephemeral resources, never to state).
 type APIKeyResponse struct {
-	ID          flexibleString `json:"id"`
-	Label       string         `json:"label"`
-	Scope       string         `json:"scope"`
-	Key         string         `json:"key"`
-	APIKey      string         `json:"api_key"`
-	ExpiresAt   string         `json:"expires_at"`
+	ID        flexibleString `json:"id"`
+	Label     string         `json:"label"`
+	Scope     string         `json:"scope"`
+	Key       string         `json:"key"`
+	APIKey    string         `json:"api_key"`
+	ExpiresAt string         `json:"expires_at"`
 }
 
 // Secret returns the raw key from whichever field the API populated.
@@ -79,11 +79,36 @@ func (c *SHCClient) ListVMs(ctx context.Context) ([]VMResponse, error) {
 	if status != http.StatusOK {
 		return nil, fmt.Errorf("listing vms: HTTP %d: %s", status, string(body))
 	}
-	var wrap struct {
-		Data []VMResponse `json:"data"`
+	// Live envelope (2026-09-11): {"data": {"items": [...]}} — unwrapData
+	// strips "data"; the inner object carries "items". The billing list keys
+	// each VM's id as "id" (the detail endpoint uses "service_id") — accept
+	// both, prefer "service_id".
+	inner := unwrapData(body)
+	var wrapped struct {
+		Items []json.RawMessage `json:"items"`
 	}
-	if err := json.Unmarshal(body, &wrap); err != nil {
+	var rawItems []json.RawMessage
+	if json.Unmarshal(inner, &wrapped) == nil && len(wrapped.Items) > 0 {
+		rawItems = wrapped.Items
+	} else if err := json.Unmarshal(inner, &rawItems); err != nil {
 		return nil, fmt.Errorf("decoding vm list: %w", err)
 	}
-	return wrap.Data, nil
+
+	vms := make([]VMResponse, 0, len(rawItems))
+	for _, raw := range rawItems {
+		var v VMResponse
+		if err := json.Unmarshal(raw, &v); err != nil {
+			return nil, fmt.Errorf("decoding vm list item: %w", err)
+		}
+		if v.ServiceID == "" {
+			var ids struct {
+				ID flexibleString `json:"id"`
+			}
+			if err := json.Unmarshal(raw, &ids); err == nil && ids.ID != "" {
+				v.ServiceID = ids.ID
+			}
+		}
+		vms = append(vms, v)
+	}
+	return vms, nil
 }

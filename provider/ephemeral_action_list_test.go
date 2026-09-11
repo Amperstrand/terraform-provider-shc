@@ -106,7 +106,7 @@ func TestListVMsParsesEnvelope(t *testing.T) {
 			t.Errorf("expected /vm, got %s", r.URL.Path)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"data": []map[string]any{
+			"items": []map[string]any{
 				{
 					"service_id": 1234, "hostname": "alpha", "service_status": "active",
 					"provisioning_state": "provisioning", "os_user": "debian",

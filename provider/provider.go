@@ -152,6 +152,7 @@ func (p *SHCProvider) Configure(ctx context.Context, req provider.ConfigureReque
 	resp.DataSourceData = client
 	resp.EphemeralResourceData = client
 	resp.ActionData = client
+	resp.ListResourceData = client
 }
 
 func (p *SHCProvider) Resources(_ context.Context) []func() resource.Resource {

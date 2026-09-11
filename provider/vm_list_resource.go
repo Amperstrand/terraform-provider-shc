@@ -7,8 +7,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/list"
 	listschema "github.com/hashicorp/terraform-plugin-framework/list/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/identityschema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -80,7 +80,7 @@ func (l *vmListResource) List(ctx context.Context, req list.ListRequest, resp *l
 
 		idSchema := vmIdentitySchema()
 		identity := tfsdk.ResourceIdentity{
-			Raw:    tftypes.NewValue(idSchema.Type().TerraformType(ctx), map[string]tftypes.Value{
+			Raw: tftypes.NewValue(idSchema.Type().TerraformType(ctx), map[string]tftypes.Value{
 				"service_id": tftypes.NewValue(tftypes.String, sid),
 			}),
 			Schema: idSchema,
@@ -113,7 +113,8 @@ func vmIdentitySchema() identityschema.Schema {
 	return identityschema.Schema{
 		Attributes: map[string]identityschema.Attribute{
 			"service_id": identityschema.StringAttribute{
-				Description: "SHC service id — the immutable VM identity.",
+				Description:       "SHC service id — the immutable VM identity.",
+				RequiredForImport: true,
 			},
 		},
 	}
