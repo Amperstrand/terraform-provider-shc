@@ -71,7 +71,7 @@ func TestCreateAPIKeyRequiresBasicAndMints(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		var req map[string]any
 		_ = json.Unmarshal(body, &req)
-		if req["label"] != "ci-temp" || req["scope"] != "full" {
+		if req["name"] != "ci-temp" || req["scope"] != "full" {
 			t.Errorf("unexpected body: %v", req)
 		}
 		if d, ok := req["expires_in_days"].(float64); !ok || int(d) != 7 {
@@ -154,7 +154,7 @@ func TestEphemeralAPIKeySchemaAndGating(t *testing.T) {
 	cfg := tfsdk.Config{
 		Raw: objValue(
 			sr.Schema.Type().TerraformType(context.Background()),
-			map[string]tftypes.Value{"label": tftypes.NewValue(tftypes.String, "ci-temp")},
+			map[string]tftypes.Value{"name": tftypes.NewValue(tftypes.String, "ci-temp")},
 		),
 		Schema: &sr.Schema,
 	}
@@ -173,7 +173,7 @@ func TestEphemeralAPIKeyOpenMints(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
-				"id": 219, "label": "ci-temp", "scope": "operate",
+				"id": 219, "name": "ci-temp", "scope": "operate",
 				"key": "shc_live_ephemeral", "expires_at": "2026-09-17",
 			},
 		})
@@ -191,7 +191,7 @@ func TestEphemeralAPIKeyOpenMints(t *testing.T) {
 	cfg := tfsdk.Config{
 		Raw: objValue(
 			sr.Schema.Type().TerraformType(context.Background()),
-			map[string]tftypes.Value{"label": tftypes.NewValue(tftypes.String, "ci-temp")},
+			map[string]tftypes.Value{"name": tftypes.NewValue(tftypes.String, "ci-temp")},
 		),
 		Schema: &sr.Schema,
 	}
@@ -202,7 +202,7 @@ func TestEphemeralAPIKeyOpenMints(t *testing.T) {
 	}
 	var out struct {
 		ID            types.String `tfsdk:"id"`
-		Label         types.String `tfsdk:"label"`
+		Name          types.String `tfsdk:"name"`
 		Scope         types.String `tfsdk:"scope"`
 		ExpiresInDays types.Int64  `tfsdk:"expires_in_days"`
 		ExpiresAt     types.String `tfsdk:"expires_at"`

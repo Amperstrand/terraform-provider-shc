@@ -19,12 +19,12 @@ import (
 // password-reset emails, toolkit lesson 24), so they belong in
 // ephemeral resources, not plan/state files.
 type apiKeyEventModel struct {
-	ID             types.String `tfsdk:"id"`
-	Label          types.String `tfsdk:"label"`
-	Scope          types.String `tfsdk:"scope"`
-	ExpiresInDays  types.Int64  `tfsdk:"expires_in_days"`
-	ExpiresAt      types.String `tfsdk:"expires_at"`
-	APIKey         types.String `tfsdk:"api_key"`
+	ID            types.String `tfsdk:"id"`
+	Name          types.String `tfsdk:"name"`
+	Scope         types.String `tfsdk:"scope"`
+	ExpiresInDays types.Int64  `tfsdk:"expires_in_days"`
+	ExpiresAt     types.String `tfsdk:"expires_at"`
+	APIKey        types.String `tfsdk:"api_key"`
 }
 
 var _ ephemeral.EphemeralResourceWithConfigure = (*apiKeyEphemeralResource)(nil)
@@ -52,9 +52,9 @@ func (r *apiKeyEphemeralResource) Schema(_ context.Context, _ ephemeral.SchemaRe
 				Computed:    true,
 				Description: "Numeric key id (revocation is Basic+OTP-only via the portal).",
 			},
-			"label": schema.StringAttribute{
+			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Key label, e.g. 'ci-temp'.",
+				Description: "Key name, e.g. 'ci-temp' (maps to the API's 'name' field).",
 			},
 			"scope": schema.StringAttribute{
 				Optional:    true,
@@ -95,12 +95,12 @@ func (r *apiKeyEphemeralResource) Configure(_ context.Context, req ephemeral.Con
 
 func (r *apiKeyEphemeralResource) Open(ctx context.Context, req ephemeral.OpenRequest, resp *ephemeral.OpenResponse) {
 	var config struct {
-		ID            types.String `tfsdk:"id"`
-		Label         types.String `tfsdk:"label"`
+		Name          types.String `tfsdk:"name"`
 		Scope         types.String `tfsdk:"scope"`
 		ExpiresInDays types.Int64  `tfsdk:"expires_in_days"`
 		ExpiresAt     types.String `tfsdk:"expires_at"`
 		APIKey        types.String `tfsdk:"api_key"`
+		ID            types.String `tfsdk:"id"`
 	}
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
@@ -131,7 +131,7 @@ func (r *apiKeyEphemeralResource) Open(ctx context.Context, req ephemeral.OpenRe
 		days = int(config.ExpiresInDays.ValueInt64())
 	}
 
-	key, err := r.client.CreateAPIKey(ctx, config.Label.ValueString(), scope, days)
+	key, err := r.client.CreateAPIKey(ctx, config.Name.ValueString(), scope, days)
 	if err != nil {
 		resp.Diagnostics.AddError("creating api key", fmt.Sprintf("%v", err))
 		return
@@ -139,7 +139,7 @@ func (r *apiKeyEphemeralResource) Open(ctx context.Context, req ephemeral.OpenRe
 
 	event := apiKeyEventModel{
 		ID:            types.StringValue(string(key.ID)),
-		Label:         types.StringValue(orDefault(key.Label, config.Label.ValueString())),
+		Name:          types.StringValue(orDefault(key.Name, config.Name.ValueString())),
 		Scope:         types.StringValue(orDefault(key.Scope, scope)),
 		ExpiresInDays: config.ExpiresInDays,
 		ExpiresAt:     types.StringValue(key.ExpiresAt),

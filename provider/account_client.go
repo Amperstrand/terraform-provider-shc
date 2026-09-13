@@ -13,7 +13,7 @@ import (
 // single-shot secrets: hand them to ephemeral resources, never to state).
 type APIKeyResponse struct {
 	ID        flexibleString `json:"id"`
-	Label     string         `json:"label"`
+	Name      string         `json:"name"`
 	Scope     string         `json:"scope"`
 	Key       string         `json:"key"`
 	APIKey    string         `json:"api_key"`
@@ -35,7 +35,7 @@ func (c *SHCClient) CreateAPIKey(ctx context.Context, label, scope string, expir
 	if !c.UsingBasicAuth() {
 		return nil, fmt.Errorf("minting API keys requires Basic auth (SetBasicAuth / provider account_username+account_password); Bearer keys are forbidden on POST /account/api-keys")
 	}
-	body := map[string]any{"label": label}
+	body := map[string]any{"name": label}
 	if scope != "" {
 		body["scope"] = scope
 	}
