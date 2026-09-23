@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+- **Embedded `provider/catalog.json` synced to the shc-toolkit v2.4.24.5 artifact (version-field only).** The toolkit's release bumped its version without regenerating its artifact, which made the cross-repo parity audit fail on both sides since 2026-09-13. The only delta is `toolkit_version: 2.4.24.4 → 2.4.24.5` — no size, price, or template changes (`go test ./...` green with the new file; parity audit all-pass).
+
 ### Added
 - **Ephemeral API-key resource — `shc_api_key` (#30, Terraform 1.10+).** Mints a key without persisting it in state (`ephemeral "shc_api_key" "temp" { label = "ci-temp"; scope = "full"; expires_in_days = 7 }`), feeding `provider { api_key = ephemeral.shc_api_key.temp.api_key }`. Keys are account-takeover-capable (toolkit lesson 24), so state-persistence is exactly the wrong place for them. Minting is **Basic-auth-only** (Bearer keys are forbidden on POST /account/api-keys — verified live): new provider attrs `account_username`/`account_password` (env: `SHC_ACCOUNT_USER`/`SHC_ACCOUNT_PASSWORD`; the username is the bare Blesta login, not necessarily the email). Both the client and the resource refuse with the actionable message when Basic is missing. Scope defaults to `operate` (cannot spend); `expires_in_days` validated 1–730 — prefer short expiries, keys cannot be revoked by other keys.
 - **VM restart action — `shc_vm_restart` (#32, Terraform 1.14+).** `action "shc_vm_restart" "r" { vm_id = "…" }` invokes the restart (routine, ungated power op — a single PATCH) without modeling it as an Update on the managed resource. Sends a progress event; carries no state.
